@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 function MultiStepForm() {
   const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(true); // NEW STATE
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -26,6 +27,11 @@ function MultiStepForm() {
   const [error, setError] = useState("");
 
   const totalSteps = 6;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 4000); // 2s loading
+    return () => clearTimeout(timer);
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
@@ -81,31 +87,95 @@ function MultiStepForm() {
     setStep(10); // final confirmation
   };
 
+  // --- LOADING SCREEN ---
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#E6E6E6]">
+        <img
+          src="/logo.png"
+          alt="OpEase Logo"
+          className="w-[32rem] opacity-0 animate-fade-in-up"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-xl mx-auto mt-10 p-6 bg-white rounded shadow space-y-6">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center animate-fade-in"
+      style={{ backgroundColor: "#E6E6E6" }}
+    >
       {/* Step 0: Welcome */}
       {step === 0 && (
-  <div className="flex flex-col items-center justify-center h-full space-y-10">
-    <img src="/logo.png" alt="OpEase Logo" className="w-64 drop-shadow-lg" />
-    <h2 className="text-2xl font-bold text-gray-800 text-center" style={{ fontFamily: 'Arial Rounded MT Bold, Arial, sans-serif' }}>
-      Start your application to become a driver
-    </h2>
-    <div className="flex flex-col items-center space-y-4">
-      <button
-        onClick={() => setStep(1)}
-        className="w-60 bg-[#4B5320] hover:bg-[#3b421a] text-white py-3 px-6 rounded-xl font-semibold transition shadow-lg hover:shadow-xl"
-      >
-        Start Application
-      </button>
-      <button 
-        onClick={() => setStep(3)}
-        className="text-[#4B5320] hover:underline font-medium"
-      >
-        Log in to continue.
-      </button>
-    </div>
-  </div>
-)}
+        <div
+          className="flex flex-col items-center min-h-screen pt-0"
+          style={{ backgroundColor: "#E6E6E6" }}
+        >
+          <img
+            src="/logo.png"
+            alt="OpEase Logo"
+            className="w-[32rem] drop-shadow-lg"
+          />
+          {/* New welcome line */}
+          <p
+            className="text-gray-600 text-lg mt-0 font-medium text-center"
+            style={{ fontFamily: "Arial Rounded MT Bold, Arial, sans-serif" }}
+          >
+            Welcome to OPEASE! - We are excited to see you join!
+          </p>
+          <h2
+            className="text-2xl font-bold text-gray-800 text-center mt-8"
+            style={{ fontFamily: "Arial Rounded MT Bold, Arial, sans-serif" }}
+          >
+            Your new career is one button away! Press start application to begin.
+          </h2>
+          <div className="flex flex-col items-center space-y-4 mt-6">
+            <button
+              onClick={() => setStep(1)}
+              className="w-60 bg-[#2E4C1E] hover:bg-[#253d17] text-white py-3 px-6 rounded-xl font-semibold transition shadow-lg hover:shadow-xl"
+            >
+              Start Application
+            </button>
+            <button
+              onClick={() => setStep(3)}
+              className="text-[#2E4C1E] hover:underline font-medium"
+            >
+              Log in to continue
+            </button>
+          </div>
+          <p className="text-xs text-gray-600 mt-4 text-center">
+            By continuing, you agree to our{" "}
+            <a href="#" className="underline hover:text-gray-800">
+              Privacy Policy
+            </a>{" "}
+            and{" "}
+            <a href="#" className="underline hover:text-gray-800">
+              Terms & Conditions
+            </a>
+            .
+          </p>
+
+          {/* Footer Section */}
+          <footer className="absolute bottom-4 text-sm text-gray-600 flex space-x-4">
+            <a href="#" className="hover:underline">
+              Privacy Policy
+            </a>
+            <span>|</span>
+            <a href="#" className="hover:underline">
+              Terms & Conditions
+            </a>
+            <span>|</span>
+            <span>© {new Date().getFullYear()} OPEASE Ltd.</span>
+          </footer>
+        </div>
+      )}
+
+export default MultiStepForm;
+
+
+
+
+
 
 
 
