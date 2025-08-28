@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --cp-primary: #2E4C1E;
+  --cp-secondary: #E6E6E6;
+  --cp-text: #333333;
+  --cp-white: #FFFFFF;
+  --cp-on-primary: #FFFFFF;
+}
+
+html, body, #root { height: 100%; }
+body { background-color: var(--cp-secondary); color: var(--cp-text); }
+
