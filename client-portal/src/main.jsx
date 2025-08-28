@@ -5,7 +5,7 @@ import { ThemeProvider, CssBaseline } from '@mui/material'
 import { createTheme } from '@mui/material/styles'
  import AppLayout from './layouts/AppLayout'
  import Home from './pages/Home'
- import Onboarding from './pages/recruitment/Onboarding'
+ import Onboarding from './pages/Recruitment/Onboarding'
  import Login from './pages/Login'
  import './index.css'
 

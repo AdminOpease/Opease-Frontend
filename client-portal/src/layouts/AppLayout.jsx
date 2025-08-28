@@ -1,10 +1,8 @@
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import {
-  AppBar, Toolbar, Button, Box, Container, Menu, MenuItem
-} from '@mui/material';
+import { AppBar, Toolbar, Button, Box, Container, Menu, MenuItem } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import Logo from '../assets/logo.png'; // change to .png if needed
+import Logo from '../assets/logo.png';
 
 function NavLinkText({ to, children, active }) {
   return (
@@ -14,10 +12,10 @@ function NavLinkText({ to, children, active }) {
       variant="text"
       sx={{
         mx: 1,
-        color: '#333333',
+        color: 'text.primary',
         fontWeight: 700,
         borderRadius: 0,
-        ...(active && { borderBottom: '2px solid #2E4C1E' }),
+        ...(active && { borderBottom: '2px solid', borderColor: 'primary.main' }),
       }}
     >
       {children}
@@ -32,12 +30,17 @@ export default function AppLayout() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="sticky" elevation={0} sx={{ bgcolor: '#E6E6E6', color: '#333333' }}>
+      <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
         <Container maxWidth={false} disableGutters sx={{ py: 3, px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Top row: centered logo and sign-in */}
           <Box sx={{ position: 'relative', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <img src={Logo} alt="Logo" style={{ height: 32, display: 'block' }} />
-            <Button component={Link} to="/login" variant="text" sx={{ position: 'absolute', right: 0, color: '#333333', fontWeight: 700 }}>
+            <img src={Logo} alt="Logo" style={{ height: 96, display: 'block' }} />
+            <Button
+              component={Link}
+              to="/login"
+              variant="text"
+              sx={{ position: 'absolute', right: 0, color: 'text.primary', fontWeight: 700 }}
+            >
               Sign in
             </Button>
           </Box>
@@ -52,8 +55,11 @@ export default function AppLayout() {
               onClick={(e) => setAnchor(e.currentTarget)}
               endIcon={<ExpandMoreIcon />}
               sx={{
-                mx: 1, color: '#333333', fontWeight: 700, borderRadius: 0,
-                ...(pathname.startsWith('/recruitment/') && { borderBottom: '2px solid #2E4C1E' }),
+                mx: 1,
+                color: 'text.primary',
+                fontWeight: 700,
+                borderRadius: 0,
+                ...(pathname.startsWith('/recruitment/') && { borderBottom: '2px solid', borderColor: 'primary.main' }),
               }}
             >
               Recruitment
@@ -74,14 +80,10 @@ export default function AppLayout() {
       </AppBar>
 
       <Box sx={{ flex: 1, width: '100%' }}>
-  <Container
-    maxWidth={false}
-    disableGutters
-    sx={{ py: 3, px: { xs: 2, sm: 3, md: 4, lg: 6 } }}
-  >
-    <Outlet />
-  </Container>
-</Box>
+        <Container maxWidth={false} disableGutters sx={{ py: 3, px: { xs: 2, sm: 3, md: 4, lg: 6 } }}>
+          <Outlet />
+        </Container>
+      </Box>
     </Box>
   );
 }
