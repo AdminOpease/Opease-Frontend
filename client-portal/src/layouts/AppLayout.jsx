@@ -1,3 +1,4 @@
+// src/layouts/AppLayout.jsx
 import * as React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { AppBar, Toolbar, Button, Box, Container, Menu, MenuItem } from '@mui/material';
@@ -25,8 +26,12 @@ function NavLinkText({ to, children, active }) {
 
 export default function AppLayout() {
   const { pathname } = useLocation();
-  const [anchor, setAnchor] = React.useState(null);
-  const open = Boolean(anchor);
+
+  // Menus: recruitment + admin
+  const [recruitAnchor, setRecruitAnchor] = React.useState(null);
+  const [adminAnchor, setAdminAnchor] = React.useState(null);
+  const recruitOpen = Boolean(recruitAnchor);
+  const adminOpen = Boolean(adminAnchor);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -52,7 +57,7 @@ export default function AppLayout() {
             {/* Recruitment dropdown */}
             <Button
               variant="text"
-              onClick={(e) => setAnchor(e.currentTarget)}
+              onClick={(e) => setRecruitAnchor(e.currentTarget)}
               endIcon={<ExpandMoreIcon />}
               sx={{
                 mx: 1,
@@ -65,14 +70,50 @@ export default function AppLayout() {
               Recruitment
             </Button>
             <Menu
-              anchorEl={anchor}
-              open={open}
-              onClose={() => setAnchor(null)}
+              anchorEl={recruitAnchor}
+              open={recruitOpen}
+              onClose={() => setRecruitAnchor(null)}
               anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
               transformOrigin={{ vertical: 'top', horizontal: 'center' }}
             >
-              <MenuItem component={Link} to="/recruitment/onboarding" onClick={() => setAnchor(null)}>
+              <MenuItem component={Link} to="/recruitment/onboarding" onClick={() => setRecruitAnchor(null)}>
                 Onboarding
+              </MenuItem>
+            </Menu>
+
+            {/* Admin & Compliance dropdown */}
+            <Button
+              variant={pathname.startsWith('/admin') ? 'contained' : 'text'}
+              color="primary"
+              onClick={(e) => setAdminAnchor(e.currentTarget)}
+              endIcon={<ExpandMoreIcon />}
+              sx={{
+                mx: 1,
+                fontWeight: 700,
+                borderRadius: 0,
+                ...(pathname.startsWith('/admin') ? { color: 'white' } : { color: 'text.primary' }),
+              }}
+            >
+              Admin &amp; Compliance
+            </Button>
+            <Menu
+              anchorEl={adminAnchor}
+              open={adminOpen}
+              onClose={() => setAdminAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            >
+              <MenuItem component={Link} to="/admin/dashboard" onClick={() => setAdminAnchor(null)}>
+                Dashboard
+              </MenuItem>
+              <MenuItem component={Link} to="/admin/drivers" onClick={() => setAdminAnchor(null)}>
+                Drivers
+              </MenuItem>
+              <MenuItem component={Link} to="/admin/working-hours" onClick={() => setAdminAnchor(null)}>
+                Working Hours
+              </MenuItem>
+              <MenuItem component={Link} to="/admin/expiring-docs" onClick={() => setAdminAnchor(null)}>
+                Expiring Documents
               </MenuItem>
             </Menu>
           </Toolbar>
@@ -87,3 +128,4 @@ export default function AppLayout() {
     </Box>
   );
 }
+``
