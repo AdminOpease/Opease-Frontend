@@ -4,6 +4,8 @@ function MultiStepForm() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
+    // Station / Location
+    station: "",
     // Step 1 – Auth
     firstName: "",
     lastName: "",
@@ -47,7 +49,22 @@ function MultiStepForm() {
 
   const totalSteps = 6;
 
+  
+  const [stations, setStations] = useState([]);
+
   useEffect(() => {
+    // Load available stations from a public JSON file (to be managed by client-portal later)
+    fetch("/stations.json")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => {
+        if (Array.isArray(data)) setStations(data);
+        else if (data && Array.isArray(data.stations)) setStations(data.stations);
+      })
+      .catch(() => {
+        // Fallback local defaults
+        setStations(["London - Park Royal", "London - Croydon", "Bristol", "Manchester"]);
+      });
+
     const timer = setTimeout(() => setLoading(false), 4000);
     return () => clearTimeout(timer);
   }, []);
@@ -121,6 +138,12 @@ function MultiStepForm() {
   // ---------- Auth Handlers ----------
   const handleSignUp = (e) => {
     e.preventDefault();
+    // Require station selection
+    if (!formData.station) {
+      setError("Please select your preferred station/location.");
+      return;
+    }
+
 
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       return setError("Please enter your first and last name.");
@@ -368,15 +391,39 @@ function MultiStepForm() {
           >
             {error && <p className="text-red-500 text-sm">{error}</p>}
 
-            <input
-              type="text"
-              name="firstName"
-              placeholder="First Name"
-              className="w-full border p-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E4C1E]"
-              value={formData.firstName}
-              onChange={handleChange}
-              required
-            />
+
+            {/* Station / Location Selection */}
+
+            <div className="mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Preferred Station / Location <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="station"
+                className="w-full border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E4C1E] bg-white"
+                value={formData.station}
+                onChange={handleChange}
+                required
+              >
+                <option value="">Select a station...</option>
+                {stations.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Please select the station / location that best suits you.
+              </p>
+            </div>
+
+              <input
+  type="text"
+  name="firstName"
+  placeholder="First Name"
+  className="w-full border p-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E4C1E]"
+  value={formData.firstName}
+  onChange={handleChange}
+  required
+/>
             <input
               type="text"
               name="lastName"

@@ -180,7 +180,50 @@ export default function DriverProfile() {
         </Grid>
       </Paper>
 
-      <Paper>
+      
+      <Paper sx={{ mb: 2 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+          Emergency Contact
+        </Typography>
+        <Grid container spacing={1.5}>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Name" value={form.emergencyName} onChange={set('emergencyName')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Relationship" value={form.emergencyRelationship} onChange={set('emergencyRelationship')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Phone" value={form.emergencyPhone} onChange={set('emergencyPhone')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" type="email" label="Email" value={form.emergencyEmail} onChange={set('emergencyEmail')} />
+          </Grid>
+        </Grid>
+      </Paper>
+
+      <Paper sx={{ mb: 2 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+          Payment & Tax Details
+        </Typography>
+        <Grid container spacing={1.5}>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Bank / Building Society" value={form.bankName} onChange={set('bankName')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Sort Code" value={form.sortCode} onChange={set('sortCode')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Account Number" value={form.accountNumber} onChange={set('accountNumber')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="Unique Tax Reference" value={form.taxReference} onChange={set('taxReference')} />
+          </Grid>
+          <Grid item xs={12} md={6}>
+            <TextField fullWidth size="small" label="VAT Number (If applicable)" value={form.vatNumber} onChange={set('vatNumber')} />
+          </Grid>
+        </Grid>
+      </Paper>
+<Paper>
         <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
           Address
         </Typography>

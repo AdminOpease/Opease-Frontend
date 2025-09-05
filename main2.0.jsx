@@ -6,10 +6,12 @@ import { ThemeProvider, CssBaseline } from '@mui/material'
 import { createTheme } from '@mui/material/styles'
 
 import AppLayout from './layouts/AppLayout'
+import Home from './pages/Home'
 import Onboarding from './pages/Recruitment/Onboarding'
-import './index.css'
 import RecruitmentDashboard from './pages/Recruitment/Dashboard'
 import Removed from './pages/Recruitment/Removed'
+import Login from './pages/Login'
+import './index.css'
 
 import AdminDashboard from './pages/Admin/Dashboard.jsx'
 import AdminDrivers from './pages/Admin/Drivers.jsx'
@@ -26,13 +28,13 @@ import { AppStoreProvider } from './state/AppStore.jsx'
 // compact MUI overrides
 import baseTheme from './theme/muiTheme.js'
 
-// Brand theme merged with compact table/menu overrides
+// merge brand theme + compact table/menu overrides
 const theme = createTheme(
   baseTheme,
   {
     palette: {
       primary:   { main: '#2E4C1E', contrastText: '#FFFFFF' },
-      background:{ default: '#E6E6E6', paper: '#FFFFFF' }, // solid bg + white cards
+      background:{ default: '#E6E6E6', paper: '#FFFFFF' },
       text:      { primary: '#333333', secondary: '#333333' },
     },
     shape: { borderRadius: 14 },
@@ -44,18 +46,16 @@ const theme = createTheme(
     components: {
       ...baseTheme.components,
       MuiCssBaseline: {
-        styleOverrides: {
-          body: { backgroundColor: '#E6E6E6', color: '#333333' },
-        },
+        styleOverrides: { body: { backgroundColor: '#E6E6E6', color: '#333333' } },
       },
       MuiPaper: {
         defaultProps: { elevation: 0 },
         styleOverrides: {
           root: {
+            padding: 24,
+            borderRadius: 14,
+            boxShadow: '0 4px 10px rgba(0,0,0,0.06)',
             backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            boxShadow: 'none',
-            padding: 0,
           },
         },
       },
@@ -63,7 +63,7 @@ const theme = createTheme(
         styleOverrides: { root: { textTransform: 'none', borderRadius: 9999, fontWeight: 600 } },
       },
     },
-  },
+  }
 )
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -73,24 +73,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <AppStoreProvider>
         <BrowserRouter>
           <Routes>
-            {/* App shell */}
+            <Route path="/login" element={<Login />} />
             <Route path="/" element={<AppLayout />}>
-              {/* Default start — no Home/Login */}
-              <Route index element={<Navigate to="admin/dashboard" replace />} />
-
-              {/* Recruitment */}
-              <Route path="recruitment/onboarding" element={<Onboarding />} />
-              {/* If you added recruitment dashboard/removed, also add: */}
+              <Route index element={<Navigate to="home" replace />} />
+              <Route path="home" element={<Home />} />
               <Route path="recruitment/dashboard" element={<RecruitmentDashboard />} />
+              <Route path="recruitment/onboarding" element={<Onboarding />} />
               <Route path="recruitment/removed" element={<Removed />} />
 
-              {/* Admin */}
               <Route path="admin/dashboard" element={<AdminDashboard />} />
               <Route path="admin/drivers" element={<AdminDrivers />} />
               <Route path="admin/working-hours" element={<AdminWorkingHours />} />
               <Route path="admin/expiring-docs" element={<AdminExpiringDocs />} />
 
-              {/* Driver detail */}
               <Route path="admin/drivers/:email" element={<DriverDetailLayout />}>
                 <Route index element={<Navigate to="profile" replace />} />
                 <Route path="profile" element={<DriverProfile />} />
@@ -98,7 +93,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               </Route>
             </Route>
 
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>

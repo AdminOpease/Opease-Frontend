@@ -15,7 +15,7 @@ function NavLinkText({ to, children, active }) {
         mx: 1,
         color: 'text.primary',
         fontWeight: 700,
-        borderRadius: 0,
+        borderRadius: 9999,
         ...(active && { borderBottom: '2px solid', borderColor: 'primary.main' }),
       }}
     >
@@ -34,68 +34,74 @@ export default function AppLayout() {
   const adminOpen = Boolean(adminAnchor);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'background.default' }}>
-      <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'background.default', color: 'text.primary' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'transparent' }}>
+      <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'transparent', color: 'text.primary' }}>
         <Container maxWidth={false} disableGutters sx={{ py: 3, px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Top row: centered logo and sign-in */}
           <Box sx={{ position: 'relative', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <img src={Logo} alt="Logo" style={{ height: 96, display: 'block' }} />
-            <Button
-              component={Link}
-              to="/login"
-              variant="text"
-              sx={{ position: 'absolute', right: 0, color: 'text.primary', fontWeight: 700 }}
-            >
-              Sign in
-            </Button>
-          </Box>
+            </Box>
 
           {/* Second row: navigation */}
           <Toolbar disableGutters sx={{ justifyContent: 'center', minHeight: 44, p: 0 }}>
-            <NavLinkText to="/home" active={pathname === '/home'}>Home</NavLinkText>
+            <NavLinkText to="/home" active={pathname === '/home'}></NavLinkText>
 
             {/* Recruitment dropdown */}
             <Button
-              variant="text"
-              onClick={(e) => setRecruitAnchor(e.currentTarget)}
-              endIcon={<ExpandMoreIcon />}
-              sx={{
-                mx: 1,
-                color: 'text.primary',
-                fontWeight: 700,
-                borderRadius: 0,
-                ...(pathname.startsWith('/recruitment/') && { borderBottom: '2px solid', borderColor: 'primary.main' }),
-              }}
-            >
-              Recruitment
-            </Button>
-            <Menu
-              anchorEl={recruitAnchor}
-              open={recruitOpen}
-              onClose={() => setRecruitAnchor(null)}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-            >
-              <MenuItem component={Link} to="/recruitment/onboarding" onClick={() => setRecruitAnchor(null)}>
-                Onboarding
-              </MenuItem>
-            </Menu>
+  variant={pathname.startsWith('/recruitment/') ? 'contained' : 'outlined'}
+  color="primary"
+  onClick={(e) => setRecruitAnchor(e.currentTarget)}
+  endIcon={<ExpandMoreIcon />}
+  sx={{
+    mx: 1,
+    fontWeight: 700,
+    borderRadius: 9999,      // pill
+    px: 2.25,
+    ...(pathname.startsWith('/recruitment/')
+      ? { color: 'white', borderColor: 'primary.main' }           // active
+      : { borderColor: 'rgba(46,76,30,0.35)' }                    // inactive outline
+    ),
+  }}
+>
+  Recruitment
+</Button>
+            {/* Recruitment dropdown menu */}
+<Menu
+  anchorEl={recruitAnchor}
+  open={Boolean(recruitAnchor)}
+  onClose={() => setRecruitAnchor(null)}
+>
+  <MenuItem component={Link} to="/recruitment/dashboard" onClick={() => setRecruitAnchor(null)}>
+    Dashboard
+  </MenuItem>
+  <MenuItem component={Link} to="/recruitment/onboarding" onClick={() => setRecruitAnchor(null)}>
+    Onboarding
+  </MenuItem>
+  <MenuItem component={Link} to="/recruitment/removed" onClick={() => setRecruitAnchor(null)}>
+    Removed
+  </MenuItem>
+</Menu>
+
 
             {/* Admin & Compliance dropdown */}
             <Button
-              variant={pathname.startsWith('/admin') ? 'contained' : 'text'}
-              color="primary"
-              onClick={(e) => setAdminAnchor(e.currentTarget)}
-              endIcon={<ExpandMoreIcon />}
-              sx={{
-                mx: 1,
-                fontWeight: 700,
-                borderRadius: 0,
-                ...(pathname.startsWith('/admin') ? { color: 'white' } : { color: 'text.primary' }),
-              }}
-            >
-              Admin &amp; Compliance
-            </Button>
+  variant={pathname.startsWith('/admin') ? 'contained' : 'outlined'}
+  color="primary"
+  onClick={(e) => setAdminAnchor(e.currentTarget)}
+  endIcon={<ExpandMoreIcon />}
+  sx={{
+    mx: 1,
+    fontWeight: 700,
+    borderRadius: 9999,      // pill
+    px: 2.25,
+    ...(pathname.startsWith('/admin')
+      ? { color: 'white', borderColor: 'primary.main' }           // active
+      : { borderColor: 'rgba(46,76,30,0.35)' }                    // inactive outline
+    ),
+  }}
+>
+  Admin &amp; Compliance
+</Button>
             <Menu
               anchorEl={adminAnchor}
               open={adminOpen}

@@ -20,7 +20,7 @@ export default function TopNav() {
       color="primary"
       sx={{
         mr: 1,
-        fontWeight: 700,
+        fontWeight: 700, borderRadius: 9999,
         ...(pathname !== to && { color: 'text.primary' }),
       }}
     >
@@ -41,13 +41,13 @@ export default function TopNav() {
 
       {/* Admin & Compliance dropdown */}
       <Button
-        variant={pathname.startsWith('/admin') ? 'contained' : 'text'}
+        variant={pathname.startsWith('/admin') ? 'contained' : 'outlined'}
         color="primary"
         onClick={(e) => setAnchorEl(e.currentTarget)}
         endIcon={<ArrowDropDownIcon />}
         sx={{
           mr: 1,
-          fontWeight: 700,
+          fontWeight: 700, borderRadius: 9999,
           ...(pathname.startsWith('/admin') && { color: 'white' }),
           ...(!pathname.startsWith('/admin') && { color: 'text.primary' }),
         }}

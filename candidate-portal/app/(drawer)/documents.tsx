@@ -50,6 +50,7 @@ const seedGroups = (): DocGroup[] => [
   { id: "identification", title: "Identification", items: [], subgroups: [{ id: "identification-old", title: "Old", items: [] }] },
   { id: "right-to-work", title: "Right to Work", items: [], subgroups: [{ id: "rtw-old", title: "Old", items: [] }] },
   { id: "national-insurance", title: "National Insurance", items: [], subgroups: [{ id: "ni-old", title: "Old", items: [] }] },
+  { id: "vat", title: "VAT", items: [], subgroups: [{ id: "vat-old", title: "Old", items: [] }] },
   { id: "address", title: "Proof of Address", items: [], subgroups: [{ id: "address-old", title: "Old", items: [] }] },
 ];
 

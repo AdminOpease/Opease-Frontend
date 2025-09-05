@@ -2,13 +2,18 @@
 import { createTheme } from '@mui/material/styles';
 
 const BORDER = '#D9D9D9';
-const HEADER_BG = '#EFEFEF';
+const HEADER_BG = '#F3F4F6';
 
 const theme = createTheme({
   typography: {
     fontSize: 12, // base; we’ll override table/body below
   },
   components: {
+    MuiButton: {
+      styleOverrides: {
+        root: { borderRadius: 9999, textTransform: 'none', fontWeight: 600 },
+      },
+    },
     MuiTable: {
       defaultProps: {
         size: 'small',
@@ -84,7 +89,7 @@ const theme = createTheme({
       styleOverrides: {
         root: {
           // light borders on tables/containers to match your look
-          borderColor: BORDER,
+          borderColor: BORDER, boxShadow: 'none', backgroundColor: 'transparent',
         },
       },
     },
