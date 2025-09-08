@@ -14,6 +14,7 @@ import Removed from './pages/Recruitment/Removed'
 import AdminDashboard from './pages/Admin/Dashboard.jsx'
 import AdminDrivers from './pages/Admin/Drivers.jsx'
 import AdminWorkingHours from './pages/Admin/WorkingHours.jsx'
+import AdminStations from './pages/Admin/Stations.jsx'
 import AdminExpiringDocs from './pages/Admin/ExpiringDocs.jsx'
 
 import DriverDetailLayout from './pages/Admin/DriverDetail/DriverDetail.jsx'
@@ -88,6 +89,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <Route path="admin/dashboard" element={<AdminDashboard />} />
               <Route path="admin/drivers" element={<AdminDrivers />} />
               <Route path="admin/working-hours" element={<AdminWorkingHours />} />
+              <Route path="admin/stations" element={<AdminStations />} />
               <Route path="admin/expiring-docs" element={<AdminExpiringDocs />} />
 
               {/* Driver detail */}

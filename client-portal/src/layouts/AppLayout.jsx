@@ -115,6 +115,8 @@ export default function AppLayout() {
             >
               {[
                 { to: '/admin/drivers', label: 'Drivers' },
+                { to: '/admin/working-hours', label: 'Working Hours' },
+                { to: '/admin/stations', label: 'Stations' },
                 { to: '/admin/expiring-docs', label: 'Expiring Documents' },
               ].map(({ to, label }) => (
                 <MenuItem
