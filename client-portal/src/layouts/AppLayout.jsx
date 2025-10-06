@@ -168,15 +168,6 @@ export default function AppLayout() {
             >
               <MenuItem
                 component={Link}
-                to="/recruitment/dashboard"
-                onClick={() => setRecruitAnchor(null)}
-                selected={pathname === '/recruitment/dashboard'}
-                sx={menuItemSx}
-              >
-                Dashboard
-              </MenuItem>
-              <MenuItem
-                component={Link}
                 to="/recruitment/onboarding"
                 onClick={() => setRecruitAnchor(null)}
                 selected={pathname === '/recruitment/onboarding'}

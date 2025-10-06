@@ -1,32 +1,74 @@
 // src/pages/Recruitment/Onboarding.jsx
 import * as React from 'react';
-import { Box, Typography, Paper, Grid, Button, Stack, Menu, MenuItem, TextField } from '@mui/material';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import { useNavigate } from 'react-router-dom';
+import {
+  Box,
+  Tabs,
+  Tab,
+  IconButton,
+  Menu,
+  MenuItem,
+  Typography,
+} from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAppStore } from '../../state/AppStore.jsx';
 
-function RowActions({ email, onActivate, onRemove }) {
-  const [anchor, setAnchor] = React.useState(null);
-  const open = Boolean(anchor);
-  return (
-    <>
-      <Button size="small" variant="text" onClick={(e) => setAnchor(e.currentTarget)}><MoreVertIcon /></Button>
-      <Menu anchorEl={anchor} open={open} onClose={() => setAnchor(null)}>
-        <MenuItem onClick={() => { setAnchor(null); onActivate(email); }}>Activate</MenuItem>
-        <MenuItem onClick={() => { setAnchor(null); onRemove(email); }}>Remove…</MenuItem>
-      </Menu>
-    </>
-  );
-}
+const ALL = 'All Depots';
 
 export default function Onboarding() {
-  const { applications, activateDriver, removeDriver, metrics } = useAppStore();
+  const { applications, activateDriver, removeDriver } = useAppStore();
   const nav = useNavigate();
+  const { pathname } = useLocation();
 
-  const today = metrics.receivedToday();
-  const phase1 = applications.filter(a => !a.removedAt).filter(a => (a.bgc === 'Pending' && !a.training && a.contractSigning !== 'Complete' && !a.dcc));
-  const phase2 = applications.filter(a => !a.removedAt).filter(a => !(a.bgc === 'Pending' && !a.training && a.contractSigning !== 'Complete' && !a.dcc));
+  // ----- Depot selector (same look/feel as Drivers page) -----
+  const depots = React.useMemo(
+    () => [ALL, ...Array.from(new Set(applications.map(a => a.depot).filter(Boolean)))],
+    [applications]
+  );
+  const [depot, setDepot] = React.useState(ALL);
+  const [depotEl, setDepotEl] = React.useState(null);
 
+  // Filter apps by depot
+  const byDepot = React.useMemo(
+    () => (depot === ALL ? applications : applications.filter(a => a.depot === depot)),
+    [applications, depot]
+  );
+
+  // ----- Phase lists (unchanged logic, now applied to depot-filtered set) -----
+  const phaseBase = React.useMemo(
+    () => byDepot.filter(a => !a.removedAt),
+    [byDepot]
+  );
+
+  const phase1 = React.useMemo(
+    () =>
+      phaseBase.filter(
+        a => a.bgc === 'Pending' && !a.training && a.contractSigning !== 'Complete' && !a.dcc
+      ),
+    [phaseBase]
+  );
+
+  const phase2 = React.useMemo(
+    () =>
+      phaseBase.filter(
+        a =>
+          !(
+            a.bgc === 'Pending' &&
+            !a.training &&
+            a.contractSigning !== 'Complete' &&
+            !a.dcc
+          )
+      ),
+    [phaseBase]
+  );
+
+  const colsPhase1 = ['Date Applied','Full Name','Phone','Pre-DCC','Account ID','DL Verification'];
+  const colsPhase2 = ['Date Applied','Full Name','Phone','BGC','Training','Contract Signing','DCC'];
+
+  // tabs reflect URL
+  const tabIndex = pathname.endsWith('/phase-2') ? 1 : 0;
+
+  // removal confirm (kept global)
   const [removeFor, setRemoveFor] = React.useState(null);
   const [removeComment, setRemoveComment] = React.useState('');
 
@@ -37,115 +79,150 @@ export default function Onboarding() {
     setRemoveComment('');
   };
 
-  const PhaseTable = ({ title, rows, cols }) => (
-    <Paper sx={{ p: 2, mb: 2 }}>
-      <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1 }}>{title}</Typography>
-      <Box sx={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-          <thead>
-            <tr>
-              {cols.map((c) => (
-                <th key={c} style={{ textAlign: 'left', padding: '8px 12px', color: '#6B7280', fontWeight: 700, fontSize: 12 }}>{c}</th>
-              ))}
-              <th style={{ width: 1 }} />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.email}>
-                {cols.includes('Date Applied') && <td style={{ padding: '10px 12px' }}>{r.dateApplied || '—'}</td>}
-                {cols.includes('Full Name') && <td style={{ padding: '10px 12px' }}>{r.name || r.email}</td>}
-                {cols.includes('Phone') && <td style={{ padding: '10px 12px' }}>{r.phone || '—'}</td>}
-                {cols.includes('Pre-DCC') && (
-                  <td style={{ padding: '10px 12px' }}>{r.preDCC}</td>
-                )}
-                {cols.includes('Account ID') && (
-                  <td style={{ padding: '10px 12px' }}>{r.accountId || <span style={{opacity:.5}}>Enter Account ID</span>}</td>
-                )}
-                {cols.includes('DL Verification') && <td style={{ padding: '10px 12px' }}>{r.dlVerification}</td>}
+  // ---- styles pulled from Drivers page for visual parity ----
+  const depotBtnSx = {
+    borderRadius: 9999,
+    px: 2,
+    minHeight: 34,
+    border: '1px solid',
+    borderColor: 'rgba(46,76,30,0.35)',
+    color: 'primary.main',
+    fontWeight: 700,
+    '&:hover': { borderColor: 'primary.main', backgroundColor: 'transparent' },
+  };
 
-                {cols.includes('BGC') && <td style={{ padding: '10px 12px' }}>{r.bgc}</td>}
-                {cols.includes('Training') && (
-                  <td style={{ padding: '10px 12px' }}>{r.training ? new Date(r.training).toLocaleDateString() : '—'}</td>
-                )}
-                {cols.includes('Contract Signing') && <td style={{ padding: '10px 12px' }}>{r.contractSigning}</td>}
-                {cols.includes('DCC') && (
-                  <td style={{ padding: '10px 12px' }}>
-                    <Button size="small" variant="outlined" onClick={() => nav(`/admin/drivers/${encodeURIComponent(r.email)}/profile`)}>Open</Button>
-                  </td>
-                )}
-
-                <td style={{ padding: '4px 6px', textAlign: 'right' }}>
-                  <RowActions
-                    email={r.email}
-                    onActivate={(email) => activateDriver(email)}
-                    onRemove={(email) => setRemoveFor(email)}
-                  />
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr><td colSpan={cols.length+1} style={{ padding: 16, color: '#6B7280' }}>No records.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </Box>
-
-      {removeFor && (
-        <Box sx={{ mt: 2, p: 2, border: '1px solid #e5e7eb', borderRadius: 2, bgcolor: 'background.paper' }}>
-          <Typography sx={{ mb: 1, fontWeight: 700 }}>Remove application</Typography>
-          <TextField
-            label="Comment (optional)"
-            size="small"
-            fullWidth
-            value={removeComment}
-            onChange={(e) => setRemoveComment(e.target.value)}
-          />
-          <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-            <Button variant="contained" color="error" onClick={doRemove}>Remove</Button>
-            <Button variant="text" onClick={() => { setRemoveFor(null); setRemoveComment(''); }}>Cancel</Button>
-          </Stack>
-        </Box>
-      )}
-    </Paper>
-  );
+  const menuPaperSx = {
+    mt: 0.5,
+    minWidth: 200,
+    borderRadius: 2,
+    border: '1px solid',
+    borderColor: 'divider',
+    boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
+    overflow: 'hidden',
+  };
+  const menuListSx = { py: 0 };
+  const navLikeItemSx = {
+    justifyContent: 'center',
+    textAlign: 'center',
+    px: 2,
+    py: 0.9,
+    fontSize: 14,
+    lineHeight: 1.25,
+    '&:hover': { backgroundColor: 'action.hover' },
+  };
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>Onboarding</Typography>
+      {/* Header row: Tabs (left) + Depot selector (right) */}
+      <Box
+        sx={{
+          mb: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          flexWrap: 'wrap',
+        }}
+      >
+        <Tabs
+          value={tabIndex}
+          onChange={(_, i) => nav(i === 0 ? 'phase-1' : 'phase-2')}
+          sx={{ minHeight: 40 }}
+        >
+          <Tab label="PHASE 1" />
+          <Tab label="PHASE 2" />
+        </Tabs>
 
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Applications received today</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>{today}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Phase 1</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>{phase1.length}</Typography>
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Paper sx={{ p: 2 }}>
-            <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>Phase 2</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 800 }}>{phase2.length}</Typography>
-          </Paper>
-        </Grid>
-      </Grid>
+        {/* Depot pill (same as Drivers) */}
+        <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={depotBtnSx}>
+          <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>
+            {depot}
+          </Typography>
+          <ExpandMoreIcon fontSize="small" />
+        </IconButton>
+        <Menu
+          anchorEl={depotEl}
+          open={Boolean(depotEl)}
+          onClose={() => setDepotEl(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+          PaperProps={{ sx: menuPaperSx }}
+          MenuListProps={{ dense: true, sx: menuListSx }}
+        >
+          {depots.map((d) => (
+            <MenuItem
+              key={d}
+              onClick={() => { setDepot(d); setDepotEl(null); }}
+              sx={navLikeItemSx}
+            >
+              {d}
+            </MenuItem>
+          ))}
+        </Menu>
+      </Box>
 
-      <PhaseTable
-        title="Phase 1"
-        rows={phase1}
-        cols={['Date Applied','Full Name','Phone','Pre-DCC','Account ID','DL Verification']}
+      {/* Child pages render content (receive depot-filtered data) */}
+      <Outlet
+        context={{
+          phase1,
+          phase2,
+          colsPhase1,
+          colsPhase2,
+          activateDriver,
+          setRemoveFor,
+        }}
       />
 
-      <PhaseTable
-        title="Phase 2"
-        rows={phase2}
-        cols={['Date Applied','Full Name','Phone','BGC','Training','Contract Signing','DCC']}
-      />
+      {/* Global remove confirmation */}
+      {removeFor && (
+        <Box
+          sx={{
+            mt: 2,
+            p: 2,
+            border: '1px solid #e5e7eb',
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+          }}
+        >
+          <Typography sx={{ mb: 1, fontWeight: 700 }}>
+            Remove application
+          </Typography>
+          <Box
+            component="textarea"
+            rows={3}
+            style={{
+              width: '100%',
+              borderRadius: 8,
+              padding: 8,
+              border: '1px solid #e5e7eb',
+              fontFamily: 'inherit',
+              fontSize: 14,
+            }}
+            value={removeComment}
+            onChange={(e) => setRemoveComment(e.target.value)}
+          />
+          <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+            <button
+              onClick={doRemove}
+              style={{
+                background: '#d32f2f', color: '#fff', border: 0, padding: '6px 12px',
+                borderRadius: 8, cursor: 'pointer'
+              }}
+            >
+              Remove
+            </button>
+            <button
+              onClick={() => { setRemoveFor(null); setRemoveComment(''); }}
+              style={{
+                background: 'transparent', color: '#1f2937', border: 0, padding: '6px 12px',
+                borderRadius: 8, cursor: 'pointer'
+              }}
+            >
+              Cancel
+            </button>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

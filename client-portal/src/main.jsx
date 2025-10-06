@@ -21,6 +21,10 @@ import DriverDetailLayout from './pages/Admin/DriverDetail/DriverDetail.jsx'
 import DriverProfile from './pages/Admin/DriverDetail/Profile.jsx'
 import DriverDocuments from './pages/Admin/DriverDetail/Documents.jsx'
 
+// NEW: Onboarding sub-pages
+import OnboardingPhase1 from './pages/Recruitment/OnboardingPhase1.jsx'
+import OnboardingPhase2 from './pages/Recruitment/OnboardingPhase2.jsx'
+
 // shared in-memory store
 import { AppStoreProvider } from './state/AppStore.jsx'
 
@@ -80,8 +84,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
               <Route index element={<Navigate to="admin/dashboard" replace />} />
 
               {/* Recruitment */}
-              <Route path="recruitment/onboarding" element={<Onboarding />} />
-              {/* If you added recruitment dashboard/removed, also add: */}
+              <Route path="recruitment/onboarding" element={<Onboarding />}>
+                <Route index element={<Navigate to="phase-1" replace />} />
+                <Route path="phase-1" element={<OnboardingPhase1 />} />
+                <Route path="phase-2" element={<OnboardingPhase2 />} />
+              </Route>
               <Route path="recruitment/dashboard" element={<RecruitmentDashboard />} />
               <Route path="recruitment/removed" element={<Removed />} />
 

@@ -1,35 +1,33 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// src/App.jsx
+import './App.css';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 
-function App() {
-  const [count, setCount] = useState(0)
+// Onboarding pages
+import Onboarding from './pages/Recruitment/Onboarding';
+import OnboardingPhase1 from './pages/Recruitment/OnboardingPhase1';
+import OnboardingPhase2 from './pages/Recruitment/OnboardingPhase2';
 
+export default function App() {
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+      <div style={{ padding: 12 }}>
+        <Link to="/recruitment/onboarding/phase-1">Go to Onboarding</Link>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
 
-export default App
+      <Routes>
+        {/* Default landing → Phase 1 */}
+        <Route path="/" element={<Navigate to="/recruitment/onboarding/phase-1" replace />} />
+
+        {/* Onboarding with nested routes */}
+        <Route path="/recruitment/onboarding" element={<Onboarding />}>
+          <Route index element={<Navigate to="phase-1" replace />} />
+          <Route path="phase-1" element={<OnboardingPhase1 />} />
+          <Route path="phase-2" element={<OnboardingPhase2 />} />
+        </Route>
+
+        {/* Catch-all → Phase 1 */}
+        <Route path="*" element={<Navigate to="/recruitment/onboarding/phase-1" replace />} />
+      </Routes>
+    </>
+  );
+}

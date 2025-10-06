@@ -25,10 +25,10 @@ export function AppStoreProvider({ children }) {
   const [documents, setDocuments] = React.useState(initialDocs);
 
   // --- Applications helpers ---
-  const todayISO = () => new Date().toISOString().slice(0,10);
+  const todayISO = () => new Date().toISOString().slice(0, 10);
 
-  const [applications, setApplications] = React.useState(() => 
-    initialDrivers.map(d => ({
+  const [applications, setApplications] = React.useState(() =>
+    initialDrivers.map((d) => ({
       ...d,
       dateApplied: todayISO(),
       phone: d.phone || '+447700900111',
@@ -46,24 +46,54 @@ export function AppStoreProvider({ children }) {
   );
 
   const phaseOf = (app) => {
-    if (app.bgc !== 'Pending' || app.training || app.contractSigning === 'Complete' || app.dcc) return 2;
+    if (
+      app.bgc !== 'Pending' ||
+      app.training ||
+      app.contractSigning === 'Complete' ||
+      app.dcc
+    )
+      return 2;
     return 1;
   };
 
   const activateDriver = (email) => {
-    setApplications(prev => prev.map(a => a.email === email ? { ...a, activatedAt: new Date().toISOString() } : a));
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.email === email ? { ...a, activatedAt: new Date().toISOString() } : a
+      )
+    );
   };
 
-  const removeDriver = (email, comment='') => {
-    setApplications(prev => prev.map(a => a.email === email ? { ...a, removedAt: new Date().toISOString(), removedComment: comment } : a));
+  const removeDriver = (email, comment = '') => {
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.email === email
+          ? { ...a, removedAt: new Date().toISOString(), removedComment: comment }
+          : a
+      )
+    );
   };
 
   const restoreDriver = (email) => {
-    setApplications(prev => prev.map(a => a.email === email ? { ...a, removedAt: null, removedComment: '' } : a));
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.email === email ? { ...a, removedAt: null, removedComment: '' } : a
+      )
+    );
+  };
+
+  // NEW: generic updater so Phase 1 can "Proceed" to Phase 2 (and for any future patches)
+  const updateApplication = (email, patch) => {
+    setApplications((prev) =>
+      prev.map((a) => (a.email === email ? { ...a, ...patch } : a))
+    );
   };
 
   const metrics = {
-    pendingContractSignings: () => applications.filter(a => !a.removedAt && a.contractSigning !== 'Complete').length,
+    pendingContractSignings: () =>
+      applications.filter(
+        (a) => !a.removedAt && a.contractSigning !== 'Complete'
+      ).length,
     targets: () => ({ weeklyTarget: 10, monthToDate: 0 }),
     startedPerWeek: () => {
       const out = {};
@@ -71,36 +101,44 @@ export function AppStoreProvider({ children }) {
         if (!a.activatedAt) continue;
         const d = new Date(a.activatedAt);
         const y = d.getFullYear();
-        const firstJan = new Date(y,0,1);
+        const firstJan = new Date(y, 0, 1);
         const pastDays = Math.floor((d - firstJan) / 86400000);
-        const week = Math.ceil((pastDays + firstJan.getDay()+1)/7);
-        const key = `${y}-W${String(week).padStart(2,'0')}`;
+        const week = Math.ceil((pastDays + firstJan.getDay() + 1) / 7);
+        const key = `${y}-W${String(week).padStart(2, '0')}`;
         out[key] = (out[key] || 0) + 1;
       }
       return out;
     },
-    receivedToday: () => applications.filter(a => a.dateApplied === todayISO() && !a.removedAt).length,
-    phase1Count: () => applications.filter(a => !a.removedAt && phaseOf(a) === 1).length,
-    phase2Count: () => applications.filter(a => !a.removedAt && phaseOf(a) === 2).length,
+    receivedToday: () =>
+      applications.filter((a) => a.dateApplied === todayISO() && !a.removedAt)
+        .length,
+    phase1Count: () =>
+      applications.filter((a) => !a.removedAt && phaseOf(a) === 1).length,
+    phase2Count: () =>
+      applications.filter((a) => !a.removedAt && phaseOf(a) === 2).length,
   };
 
+  // IMPORTANT: include applications/metrics in the memo deps so consumers re-render on changes
+  const value = React.useMemo(
+    () => ({
+      depots: DEPOTS,
 
-  const value = React.useMemo(() => ({
-    depots: DEPOTS,
+      drivers,
+      setDrivers,
 
-    drivers,
-    setDrivers,
+      applications,
+      setApplications,
+      updateApplication, // ← exposed
+      activateDriver,
+      removeDriver,
+      restoreDriver,
+      metrics,
 
-    applications,
-    setApplications,
-    activateDriver,
-    removeDriver,
-    restoreDriver,
-    metrics,
-
-    documents,
-    setDocuments,
-  }), [drivers, documents]);
+      documents,
+      setDocuments,
+    }),
+    [drivers, documents, applications, metrics]
+  );
 
   return (
     <AppStoreContext.Provider value={value}>
