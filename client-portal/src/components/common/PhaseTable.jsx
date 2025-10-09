@@ -1,4 +1,4 @@
-// src/components/common/PhaseTable.jsx
+// client-portal/src/components/common/PhaseTable.jsx
 import * as React from 'react';
 import {
   Paper,
@@ -13,19 +13,18 @@ import {
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 
+const CELL_FONT_PX = 11;          // <— change this to adjust all table & control font sizes
+
 export default function PhaseTable({
-  // kept for compatibility but not rendered
-  title,
+  title,              // kept for API compatibility
   rows = [],
   cols = [],
-  // Actions (pass whichever you want to show)
-  onProceed,          // Phase 1: move to Phase 2
-  onActivate,         // Phase 2: activate
-  onReturnToPhase1,   // Phase 2: move back to Phase 1
-  onRemove,           // Both phases
-  // Optional helpers
+  onProceed,
+  onActivate,
+  onReturnToPhase1,
+  onRemove,
   getRowId,
-  renderCell,         // (row, label) => ReactNode | undefined
+  renderCell,         // (row, label) => ReactNode | undefined -> undefined falls back to default
 }) {
   const [menuEl, setMenuEl] = React.useState(null);
   const [activeRowId, setActiveRowId] = React.useState(null);
@@ -33,22 +32,40 @@ export default function PhaseTable({
   const hasActions = Boolean(onProceed || onActivate || onReturnToPhase1 || onRemove);
 
   const rowIdOf = React.useCallback(
-    (row, idx) => {
-      if (typeof getRowId === 'function') return getRowId(row, idx);
-      return row?.email || row?.id || row?._id || String(idx);
-    },
+    (row, idx) => (typeof getRowId === 'function'
+      ? getRowId(row, idx)
+      : row?.email || row?.id || row?._id || String(idx)),
     [getRowId]
   );
 
   return (
     <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-      {/* Title bar intentionally removed so the table starts at headers */}
       <Table
         size="small"
         sx={{
-          '& th, & td': { px: 1.5 },
+          // Unify text + control sizing
+          '& th, & td': {
+            px: 1.5,
+            py: "small",
+            fontSize: `${CELL_FONT_PX}px`,
+            lineHeight: 1.4,
+            verticalAlign: 'middle',
+            textAlign: 'center', // ⬅️ center content in each cell
+          },
           '& thead th:first-of-type, & tbody td:first-of-type': { pl: 3 },
-          '& thead th:last-of-type,  & tbody td:last-of-type': { pr: 3 },
+          '& thead th:last-of-type,  & tbody td:last-of-type':  { pr: 3 },
+
+          // Make all inputs/selects inherit the table size & align neatly
+          '& .MuiInputBase-root': {
+            height: 22,                 // compact height that works well with 11px text
+            fontSize: 'inherit',
+            lineHeight: 1.4,
+            borderRadius: 1.25,
+          },
+          // ⬇️ center text inside inputs and selects
+          '& .MuiOutlinedInput-input, & .MuiInputBase-input': { textAlign: 'center' },
+          '& .MuiSelect-select': { py: 0, minHeight: 'unset', textAlign: 'center' },
+          '& .MuiChip-root': { fontSize: 'inherit' },
         }}
       >
         <TableHead>
@@ -59,7 +76,7 @@ export default function PhaseTable({
               </TableCell>
             ))}
             {hasActions && (
-              <TableCell align="right" sx={{ fontWeight: 700, width: '2%' }}>
+              <TableCell align="center" sx={{ fontWeight: 700, width: '2%' }}>
                 Actions
               </TableCell>
             )}
@@ -76,7 +93,6 @@ export default function PhaseTable({
                     {renderCell
                       ? (() => {
                           const out = renderCell(row, label);
-                          // If your override returns undefined, fall back to default renderer
                           return out === undefined ? defaultRender(row, label) : out;
                         })()
                       : defaultRender(row, label)}
@@ -84,7 +100,7 @@ export default function PhaseTable({
                 ))}
 
                 {hasActions && (
-                  <TableCell align="right">
+                  <TableCell align="center">
                     <IconButton
                       size="small"
                       aria-label="more"
@@ -114,14 +130,10 @@ export default function PhaseTable({
         </TableBody>
       </Table>
 
-      {/* Row actions menu */}
       <Menu
         anchorEl={menuEl}
         open={Boolean(menuEl)}
-        onClose={() => {
-          setMenuEl(null);
-          setActiveRowId(null);
-        }}
+        onClose={() => { setMenuEl(null); setActiveRowId(null); }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
@@ -137,28 +149,17 @@ export default function PhaseTable({
         }}
         MenuListProps={{ dense: true, sx: { py: 0 } }}
       >
-        {/* Phase 1 */}
         {onProceed && (
           <MenuItem
-            onClick={() => {
-              onProceed(activeRowId);
-              setMenuEl(null);
-              setActiveRowId(null);
-            }}
+            onClick={() => { onProceed(activeRowId); setMenuEl(null); setActiveRowId(null); }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Proceed
           </MenuItem>
         )}
-
-        {/* Phase 2 */}
         {onActivate && (
           <MenuItem
-            onClick={() => {
-              onActivate(activeRowId);
-              setMenuEl(null);
-              setActiveRowId(null);
-            }}
+            onClick={() => { onActivate(activeRowId); setMenuEl(null); setActiveRowId(null); }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Activate
@@ -166,25 +167,15 @@ export default function PhaseTable({
         )}
         {onReturnToPhase1 && (
           <MenuItem
-            onClick={() => {
-              onReturnToPhase1(activeRowId);
-              setMenuEl(null);
-              setActiveRowId(null);
-            }}
+            onClick={() => { onReturnToPhase1(activeRowId); setMenuEl(null); setActiveRowId(null); }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Move to Phase 1
           </MenuItem>
         )}
-
-        {/* Both phases */}
         {onRemove && (
           <MenuItem
-            onClick={() => {
-              onRemove(activeRowId);
-              setMenuEl(null);
-              setActiveRowId(null);
-            }}
+            onClick={() => { onRemove(activeRowId); setMenuEl(null); setActiveRowId(null); }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Remove
@@ -195,11 +186,6 @@ export default function PhaseTable({
   );
 }
 
-/**
- * Basic default cell renderer:
- * - Tries common key variants to map a header label to a row field.
- * - Falls back to '-', and special-cases name/email/phone.
- */
 function defaultRender(row, label) {
   const keys = [
     label,
