@@ -10,13 +10,16 @@ import {
   IconButton,
   Menu,
   MenuItem,
+  TableFooter,
+  TablePagination,
 } from '@mui/material';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
+import { useNavigate } from 'react-router-dom';
 
-const CELL_FONT_PX = 11;          // <— change this to adjust all table & control font sizes
+const CELL_FONT_PX = 11; // global table/control font size
 
 export default function PhaseTable({
-  title,              // kept for API compatibility
+  title,
   rows = [],
   cols = [],
   onProceed,
@@ -24,45 +27,67 @@ export default function PhaseTable({
   onReturnToPhase1,
   onRemove,
   getRowId,
-  renderCell,         // (row, label) => ReactNode | undefined -> undefined falls back to default
+  renderCell,
+  // Pagination
+  paginate = false,
+  rowsPerPageOptions = [10, 25, 50],
+  defaultRowsPerPage = 25,
+  // New additions
+  profilePathFor,
+  documentsPathFor,
 }) {
+  const navigate = useNavigate();
   const [menuEl, setMenuEl] = React.useState(null);
-  const [activeRowId, setActiveRowId] = React.useState(null);
+  const [activeRow, setActiveRow] = React.useState(null);
 
-  const hasActions = Boolean(onProceed || onActivate || onReturnToPhase1 || onRemove);
+  const [page, setPage] = React.useState(0);
+  const [rowsPerPage, setRowsPerPage] = React.useState(defaultRowsPerPage);
+
+  const hasActions = Boolean(
+    onProceed || onActivate || onReturnToPhase1 || onRemove || profilePathFor || documentsPathFor
+  );
 
   const rowIdOf = React.useCallback(
-    (row, idx) => (typeof getRowId === 'function'
-      ? getRowId(row, idx)
-      : row?.email || row?.id || row?._id || String(idx)),
+    (row, idx) =>
+      typeof getRowId === 'function'
+        ? getRowId(row, idx)
+        : row?.email || row?.id || row?._id || String(idx),
     [getRowId]
   );
+
+  const pagedRows = React.useMemo(() => {
+    if (!paginate) return rows;
+    const start = page * rowsPerPage;
+    return rows.slice(start, start + rowsPerPage);
+  }, [rows, paginate, page, rowsPerPage]);
+
+  React.useEffect(() => {
+    if (!paginate) return;
+    const maxPage = Math.max(0, Math.ceil(rows.length / rowsPerPage) - 1);
+    if (page > maxPage) setPage(0);
+  }, [rows, rowsPerPage, page, paginate]);
 
   return (
     <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
       <Table
         size="small"
         sx={{
-          // Unify text + control sizing
           '& th, & td': {
             px: 1.5,
-            py: "small",
+            py: 'small',
             fontSize: `${CELL_FONT_PX}px`,
             lineHeight: 1.4,
             verticalAlign: 'middle',
-            textAlign: 'center', // ⬅️ center content in each cell
+            textAlign: 'center',
           },
           '& thead th:first-of-type, & tbody td:first-of-type': { pl: 3 },
-          '& thead th:last-of-type,  & tbody td:last-of-type':  { pr: 3 },
-
-          // Make all inputs/selects inherit the table size & align neatly
+          '& thead th:last-of-type,  & tbody td:last-of-type': { pr: 3 },
           '& .MuiInputBase-root': {
-            height: 22,                 // compact height that works well with 11px text
+            height: 22,
             fontSize: 'inherit',
             lineHeight: 1.4,
             borderRadius: 1.25,
           },
-          // ⬇️ center text inside inputs and selects
           '& .MuiOutlinedInput-input, & .MuiInputBase-input': { textAlign: 'center' },
           '& .MuiSelect-select': { py: 0, minHeight: 'unset', textAlign: 'center' },
           '& .MuiChip-root': { fontSize: 'inherit' },
@@ -84,7 +109,7 @@ export default function PhaseTable({
         </TableHead>
 
         <TableBody>
-          {rows.map((row, idx) => {
+          {pagedRows.map((row, idx) => {
             const id = rowIdOf(row, idx);
             return (
               <TableRow key={id} hover>
@@ -106,7 +131,7 @@ export default function PhaseTable({
                       aria-label="more"
                       onClick={(e) => {
                         setMenuEl(e.currentTarget);
-                        setActiveRowId(id);
+                        setActiveRow(row);
                       }}
                     >
                       <MoreVertIcon fontSize="small" />
@@ -128,12 +153,44 @@ export default function PhaseTable({
             </TableRow>
           )}
         </TableBody>
+
+        {paginate && rows.length > 0 && (
+          <TableFooter>
+            <TableRow>
+              <TablePagination
+                component="div"
+                count={rows.length}
+                page={page}
+                onPageChange={(_, newPage) => setPage(newPage)}
+                rowsPerPage={rowsPerPage}
+                onRowsPerPageChange={(e) => {
+                  setRowsPerPage(parseInt(e.target.value, 10));
+                  setPage(0);
+                }}
+                rowsPerPageOptions={rowsPerPageOptions}
+                labelRowsPerPage="Rows"
+                sx={{
+                  width: '100%',
+                  '& .MuiTablePagination-toolbar': { minHeight: 32, px: 1 },
+                  '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+                    fontSize: '11px',
+                  },
+                  '& .MuiInputBase-root': { fontSize: '11px' },
+                  '& .MuiTablePagination-actions button': { p: 0.25 },
+                }}
+              />
+            </TableRow>
+          </TableFooter>
+        )}
       </Table>
 
       <Menu
         anchorEl={menuEl}
         open={Boolean(menuEl)}
-        onClose={() => { setMenuEl(null); setActiveRowId(null); }}
+        onClose={() => {
+          setMenuEl(null);
+          setActiveRow(null);
+        }}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{
@@ -149,9 +206,34 @@ export default function PhaseTable({
         }}
         MenuListProps={{ dense: true, sx: { py: 0 } }}
       >
+        {profilePathFor && activeRow && (
+          <MenuItem
+            onClick={() => {
+              navigate(profilePathFor(activeRow));
+              setMenuEl(null);
+            }}
+            sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
+          >
+            Profile
+          </MenuItem>
+        )}
+        {documentsPathFor && activeRow && (
+          <MenuItem
+            onClick={() => {
+              navigate(documentsPathFor(activeRow));
+              setMenuEl(null);
+            }}
+            sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
+          >
+            Documents
+          </MenuItem>
+        )}
         {onProceed && (
           <MenuItem
-            onClick={() => { onProceed(activeRowId); setMenuEl(null); setActiveRowId(null); }}
+            onClick={() => {
+              onProceed(activeRow?.email);
+              setMenuEl(null);
+            }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Proceed
@@ -159,7 +241,10 @@ export default function PhaseTable({
         )}
         {onActivate && (
           <MenuItem
-            onClick={() => { onActivate(activeRowId); setMenuEl(null); setActiveRowId(null); }}
+            onClick={() => {
+              onActivate(activeRow?.email);
+              setMenuEl(null);
+            }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Activate
@@ -167,7 +252,10 @@ export default function PhaseTable({
         )}
         {onReturnToPhase1 && (
           <MenuItem
-            onClick={() => { onReturnToPhase1(activeRowId); setMenuEl(null); setActiveRowId(null); }}
+            onClick={() => {
+              onReturnToPhase1(activeRow?.email);
+              setMenuEl(null);
+            }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Move to Phase 1
@@ -175,7 +263,10 @@ export default function PhaseTable({
         )}
         {onRemove && (
           <MenuItem
-            onClick={() => { onRemove(activeRowId); setMenuEl(null); setActiveRowId(null); }}
+            onClick={() => {
+              onRemove(activeRow?.email);
+              setMenuEl(null);
+            }}
             sx={{ justifyContent: 'center', px: 1.25, py: 0.6, fontSize: 13 }}
           >
             Remove

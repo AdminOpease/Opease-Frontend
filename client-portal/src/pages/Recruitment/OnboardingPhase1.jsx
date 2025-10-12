@@ -32,7 +32,7 @@ export default function OnboardingPhase1() {
     );
   }, [phase1, query]);
 
-  // Pre-DCC: compact select
+  // Pre-DCC
   const PreDccEditor = ({ row }) => {
     const value = row.preDCC || 'In Review';
     const handleChange = (e) => updateApplication(row.email, { preDCC: e.target.value });
@@ -40,16 +40,33 @@ export default function OnboardingPhase1() {
       <Select
         value={value}
         onChange={handleChange}
-        input={<OutlinedInput size="small" sx={{ height: 28, borderRadius: 1.25, fontSize: 'inherit', pr: 3, '& .MuiOutlinedInput-input': { p: 0 } }} />}
+        input={
+          <OutlinedInput
+            size="small"
+            sx={{
+              height: 28,
+              borderRadius: 1.25,
+              fontSize: 'inherit',
+              pr: 3,
+              '& .MuiOutlinedInput-input': { p: 0 },
+            }}
+          />
+        }
         MenuProps={{ MenuListProps: { dense: true } }}
-        sx={{ minWidth: 108, '& .MuiSelect-select': { py: 0, px: 1, minHeight: 'unset' }, '& .MuiSelect-icon': { fontSize: 18, mr: 0.25 } }}
+        sx={{
+          minWidth: 108,
+          '& .MuiSelect-select': { py: 0, px: 1, minHeight: 'unset' },
+          '& .MuiSelect-icon': { fontSize: 18, mr: 0.25 },
+        }}
       >
-        {PREDCC_OPTIONS.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+        {PREDCC_OPTIONS.map((opt) => (
+          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+        ))}
       </Select>
     );
   };
 
-  // Account ID: compact text field
+  // Account ID
   const AccountIdEditor = ({ row }) => {
     const initial = row.accountId || '';
     const [local, setLocal] = React.useState(initial);
@@ -68,7 +85,8 @@ export default function OnboardingPhase1() {
         variant="outlined"
         size="small"
         sx={{
-          ml: -1, width: 220,
+          ml: -1,
+          width: 220,
           '& .MuiOutlinedInput-notchedOutline': { borderRadius: 1.25 },
           '& .MuiInputBase-root': { height: 28, fontSize: 'inherit', px: 1 },
         }}
@@ -76,7 +94,7 @@ export default function OnboardingPhase1() {
     );
   };
 
-  // DL Verification: compact select
+  // DL Verification
   const DlVerificationEditor = ({ row }) => {
     const value = row.dlVerification || 'Pending';
     const handleChange = (e) => updateApplication(row.email, { dlVerification: e.target.value });
@@ -84,19 +102,61 @@ export default function OnboardingPhase1() {
       <Select
         value={value}
         onChange={handleChange}
-        input={<OutlinedInput size="small" sx={{ height: 28, borderRadius: 1.25, fontSize: 'inherit', pr: 3, '& .MuiOutlinedInput-input': { p: 0 } }} />}
+        input={
+          <OutlinedInput
+            size="small"
+            sx={{
+              height: 28,
+              borderRadius: 1.25,
+              fontSize: 'inherit',
+              pr: 3,
+              '& .MuiOutlinedInput-input': { p: 0 },
+            }}
+          />
+        }
         MenuProps={{ MenuListProps: { dense: true } }}
-        sx={{ minWidth: 108, '& .MuiSelect-select': { py: 0, px: 1, minHeight: 'unset' }, '& .MuiSelect-icon': { fontSize: 18, mr: 0.25 } }}
+        sx={{
+          minWidth: 108,
+          '& .MuiSelect-select': { py: 0, px: 1, minHeight: 'unset' },
+          '& .MuiSelect-icon': { fontSize: 18, mr: 0.25 },
+        }}
       >
-        {DL_OPTIONS.map((opt) => <MenuItem key={opt} value={opt}>{opt}</MenuItem>)}
+        {DL_OPTIONS.map((opt) => (
+          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
+        ))}
       </Select>
     );
   };
 
-  // Header row (center chips + search)
-  const headerRowSx = { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 2, flexWrap: 'wrap', mb: 2 };
-  const pillGroupSx = { borderRadius: 9999, border: '1px solid', borderColor: 'divider', px: 1, py: 0.75, minHeight: 44, display: 'flex', alignItems: 'center' };
-  const searchPillSx = { borderRadius: 9999, border: '1px solid', borderColor: 'divider', minHeight: 44, display: 'flex', alignItems: 'center', px: 1.25 };
+  // Header styling
+  const headerRowSx = {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 2,
+    flexWrap: 'wrap',
+    mt: 0,
+    mb: 1,
+  };
+  const pillGroupSx = {
+    borderRadius: 9999,
+    border: '1px solid',
+    borderColor: 'divider',
+    px: 1,
+    py: 0.75,
+    minHeight: 44,
+    display: 'flex',
+    alignItems: 'center',
+  };
+  const searchPillSx = {
+    borderRadius: 9999,
+    border: '1px solid',
+    borderColor: 'divider',
+    minHeight: 44,
+    display: 'flex',
+    alignItems: 'center',
+    px: 1.25,
+  };
   const chipSx = { borderRadius: 9999, fontWeight: 700 };
 
   return (
@@ -117,8 +177,17 @@ export default function OnboardingPhase1() {
               size="small"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              sx={{ '& .MuiOutlinedInput-notchedOutline': { border: 'none' }, '& .MuiInputBase-root': { backgroundColor: 'transparent', height: 44 } }}
-              InputProps={{ startAdornment: (<InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>) }}
+              sx={{
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '& .MuiInputBase-root': { backgroundColor: 'transparent', height: 44 },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
             />
           </Box>
         </Paper>
@@ -130,6 +199,8 @@ export default function OnboardingPhase1() {
         cols={colsPhase1}
         onProceed={(email) => updateApplication(email, { bgc: 'Not Applied' })}
         onRemove={(email) => setRemoveFor(email)}
+        profilePathFor={(r) => `/admin/drivers/${encodeURIComponent(r.email)}`}
+        documentsPathFor={(r) => `/admin/drivers/${encodeURIComponent(r.email)}/documents`}
         renderCell={(row, label) => {
           if (label === 'Pre-DCC') return <PreDccEditor row={row} />;
           if (label === 'Account ID') return <AccountIdEditor row={row} />;
@@ -137,6 +208,9 @@ export default function OnboardingPhase1() {
           if (label === 'Station') return row.station || row.depot || '-';
           return undefined;
         }}
+        paginate
+        rowsPerPageOptions={[25, 50, 100]}
+        defaultRowsPerPage={25}
       />
     </Box>
   );

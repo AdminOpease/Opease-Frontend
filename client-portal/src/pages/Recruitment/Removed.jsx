@@ -1,56 +1,115 @@
-// src/pages/Recruitment/Removed.jsx
+// client-portal/src/pages/Recruitment/Removed.jsx
 import * as React from 'react';
-import { Box, Typography, Paper, Button } from '@mui/material';
+import {
+  Box,
+  Paper,
+  TextField,
+  InputAdornment,
+} from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { useAppStore } from '../../state/AppStore.jsx';
-
-function stageBeforeRemoval(app) {
-  if (app.dcc) return 'DCC';
-  if (app.contractSigning === 'Complete') return 'Contract Signing';
-  if (app.training) return 'Training';
-  if (app.bgc && app.bgc !== 'Pending') return 'BGC';
-  if (app.dlVerification && app.dlVerification !== 'Pending') return 'DL Verification';
-  if (app.preDCC) return 'Pre-DCC';
-  return 'Applied';
-}
+import PhaseTable from '../../components/common/PhaseTable';
 
 export default function Removed() {
   const { applications, restoreDriver } = useAppStore();
-  const rows = applications.filter(a => a.removedAt);
+
+  // Removed applications
+  const removed = React.useMemo(
+    () => applications.filter((a) => !!a.removedAt),
+    [applications]
+  );
+
+  // Search
+  const [query, setQuery] = React.useState('');
+  const filtered = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return removed;
+    return removed.filter((r) =>
+      (r.name || '').toLowerCase().includes(q) ||
+      (r.email || '').toLowerCase().includes(q) ||
+      (r.phone || '').toLowerCase().includes(q) ||
+      (r.accountId || '').toLowerCase().includes(q) ||
+      (r.station || r.depot || '').toLowerCase().includes(q)
+    );
+  }, [removed, query]);
+
+  // Columns
+  const cols = [
+    'Date Applied',
+    'Station',
+    'Full Name',
+    'Phone',
+    'Account ID',
+    'Stage at Removal',
+    'Comment',
+  ];
+
+  // Helper to show the phase at time of removal (best effort)
+  const phaseAtRemoval = (a) =>
+    a.removedStage ||
+    (a.bgc !== 'Pending' || a.training || a.contractSigning === 'Complete' || a.dcc
+      ? 'Phase 2'
+      : 'Phase 1');
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>Removed Applications</Typography>
+      {/* Centered search bar (same styling language as Onboarding) */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 2 }}>
+        <Paper
+          variant="outlined"
+          sx={{
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            height: 44,
+            display: 'flex',
+            alignItems: 'center',
+            px: 1.25,
+            width: { xs: '100%', sm: 'auto' },
+          }}
+        >
+          <Box sx={{ width: { xs: 280, sm: 420, md: 520 }, mx: 'auto' }}>
+            <TextField
+              fullWidth
+              placeholder="Search name, email, phone, station, or account ID"
+              size="small"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              sx={{
+                '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                '& .MuiInputBase-root': { backgroundColor: 'transparent', height: 44 },
+              }}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" />
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Box>
+        </Paper>
+      </Box>
 
-      <Paper sx={{ p: 2 }}>
-        <Box sx={{ overflowX: 'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'separate', borderSpacing:0 }}>
-            <thead>
-              <tr>
-                {['Date Applied','Full Name','Phone','Stage at Removal','Comment',''].map(h => (
-                  <th key={h} style={{ textAlign:'left', padding:'8px 12px', color:'#6B7280', fontWeight:700, fontSize:12 }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(r => (
-                <tr key={r.email}>
-                  <td style={{ padding:'10px 12px' }}>{r.dateApplied || '—'}</td>
-                  <td style={{ padding:'10px 12px' }}>{r.name || r.email}</td>
-                  <td style={{ padding:'10px 12px' }}>{r.phone || '—'}</td>
-                  <td style={{ padding:'10px 12px' }}>{stageBeforeRemoval(r)}</td>
-                  <td style={{ padding:'10px 12px', maxWidth: 360 }}>{r.removedComment || '—'}</td>
-                  <td style={{ padding:'10px 12px', textAlign:'right' }}>
-                    <Button size="small" variant="outlined" onClick={() => restoreDriver(r.email)}>Add back</Button>
-                  </td>
-                </tr>
-              ))}
-              {rows.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: 16, color:'#6B7280' }}>No removed applications.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </Box>
-      </Paper>
+      <PhaseTable
+        // no page title — just the table
+        rows={filtered}
+        cols={cols}
+        // Use the "Activate" slot to perform a Restore
+        onActivate={(email) => restoreDriver(email)}
+        renderCell={(row, label) => {
+          if (label === 'Station') return row.station || row.depot || '-';
+          if (label === 'Account ID') return row.accountId || '-';
+          if (label === 'Stage at Removal') return phaseAtRemoval(row);
+          if (label === 'Comment') return row.removedComment || '-';
+          if (label === 'Date Applied') return row.dateApplied || '-';
+          return undefined; // fallback to default renderer
+        }}
+        // Pagination (25 per page)
+        paginate
+        rowsPerPageOptions={[25, 50, 100]}
+        defaultRowsPerPage={25}
+      />
     </Box>
   );
 }

@@ -44,7 +44,7 @@ export default function OnboardingPhase2() {
     );
   }, [phase2, query]);
 
-  // ---------- Background Check editor ----------
+  // ---------- Background Check ----------
   const BackgroundCheckEditor = ({ row }) => {
     const current = row.bgc === 'In Review' ? 'Pending' : row.bgc || 'Not Applied';
     const handleChange = (e) => updateApplication(row.email, { bgc: e.target.value });
@@ -72,15 +72,13 @@ export default function OnboardingPhase2() {
         }}
       >
         {BGC_OPTIONS.map((opt) => (
-          <MenuItem key={opt} value={opt}>
-            {opt}
-          </MenuItem>
+          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
         ))}
       </Select>
     );
   };
 
-  // ---------- Training editor ----------
+  // ---------- Training ----------
   const parseTraining = (t) => {
     if (!t) return { date: '', company: '', session: '' };
     if (typeof t === 'string') {
@@ -185,7 +183,7 @@ export default function OnboardingPhase2() {
     );
   };
 
-  // ---------- Contract Signing editor ----------
+  // ---------- Contract Signing ----------
   const ContractSigningEditor = ({ row }) => {
     const value = /^\d{4}-\d{2}-\d{2}$/.test(row.contractSigning || '')
       ? row.contractSigning
@@ -215,7 +213,7 @@ export default function OnboardingPhase2() {
     );
   };
 
-  // ---------- DCC editor ----------
+  // ---------- DCC ----------
   const DccEditor = ({ row }) => {
     const current = row.dcc || 'Need to Review';
     const handle = (e) => updateApplication(row.email, { dcc: e.target.value });
@@ -243,22 +241,21 @@ export default function OnboardingPhase2() {
         }}
       >
         {DCC_OPTIONS.map((opt) => (
-          <MenuItem key={opt} value={opt}>
-            {opt}
-          </MenuItem>
+          <MenuItem key={opt} value={opt}>{opt}</MenuItem>
         ))}
       </Select>
     );
   };
 
-  // Header styles
+  // Header
   const headerRowSx = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
     gap: 2,
     flexWrap: 'wrap',
-    mb: 2,
+    mt: 0,
+    mb: 1,
   };
   const pillGroupSx = {
     borderRadius: 9999,
@@ -330,6 +327,8 @@ export default function OnboardingPhase2() {
         onActivate={(email) => activateDriver(email)}
         onRemove={(email) => setRemoveFor(email)}
         onReturnToPhase1={(email) => returnToPhase1(email)}
+        profilePathFor={(r) => `/admin/drivers/${encodeURIComponent(r.email)}`}
+        documentsPathFor={(r) => `/admin/drivers/${encodeURIComponent(r.email)}/documents`}
         renderCell={(row, label) => {
           if (label === 'Station') return row.station || row.depot || '-';
           if (label === 'Background Check') return <BackgroundCheckEditor row={row} />;
@@ -338,6 +337,9 @@ export default function OnboardingPhase2() {
           if (label === 'DCC') return <DccEditor row={row} />;
           return undefined;
         }}
+        paginate
+        rowsPerPageOptions={[25, 50, 100]}
+        defaultRowsPerPage={25}
       />
     </Box>
   );
