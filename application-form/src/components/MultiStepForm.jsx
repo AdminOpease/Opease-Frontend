@@ -1,8 +1,40 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+
+function Toast({ message, onDone }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3000);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 24,
+        left: "50%",
+        transform: "translateX(-50%)",
+        backgroundColor: "#2E4C1E",
+        color: "#fff",
+        padding: "12px 24px",
+        borderRadius: 10,
+        fontWeight: 600,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+        zIndex: 9999,
+        animation: "toast-in 0.25s ease-out",
+      }}
+    >
+      {message}
+      <style>{`@keyframes toast-in { from { opacity:0; transform:translateX(-50%) translateY(-12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
+    </div>
+  );
+}
 
 function MultiStepForm() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((msg) => setToast(msg), []);
+  const clearToast = useCallback(() => setToast(null), []);
   const [formData, setFormData] = useState({
     // Station / Location
     station: "",
@@ -164,8 +196,9 @@ function MultiStepForm() {
 
   const handleVerify = (e) => {
     e.preventDefault();
+    // DEMO ONLY: Replace with backend email verification when API is ready
     if (formData.code === "123456") {
-      alert("Email verified!");
+      showToast("Email verified!");
       setStep(4); // jump to application
     } else {
       setError("Invalid code.");
@@ -276,7 +309,7 @@ function MultiStepForm() {
     }
 
     setError("");
-    alert("Application submitted!");
+    showToast("Application submitted!");
     setStep(10); // final confirmation
   };
 
@@ -298,6 +331,7 @@ function MultiStepForm() {
       className="min-h-screen flex flex-col items-center justify-center animate-fade-in"
       style={{ backgroundColor: "#E6E6E6" }}
     >
+      {toast && <Toast message={toast} onDone={clearToast} />}
       {/* Step 0: Welcome */}
       {step === 0 && (
         <div

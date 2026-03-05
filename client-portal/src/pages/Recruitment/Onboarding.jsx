@@ -21,6 +21,36 @@ import { useAppStore } from '../../state/AppStore.jsx';
 
 const ALL = 'All Depots';
 
+// Static style objects (extracted to avoid re-creation on every render)
+const depotBtnSx = {
+  borderRadius: 9999,
+  px: 2,
+  minHeight: 34,
+  border: '1px solid',
+  borderColor: 'rgba(46,76,30,0.35)',
+  color: 'primary.main',
+  fontWeight: 700,
+  '&:hover': { borderColor: 'primary.main', backgroundColor: 'transparent' },
+};
+const menuPaperSx = {
+  mt: 0.5,
+  minWidth: 200,
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
+  overflow: 'hidden',
+};
+const navLikeItemSx = {
+  justifyContent: 'center',
+  textAlign: 'center',
+  px: 2,
+  py: 0.9,
+  fontSize: 14,
+  lineHeight: 1.25,
+  '&:hover': { backgroundColor: 'action.hover' },
+};
+
 export default function Onboarding() {
   const { applications, activateDriver, removeDriver, depots = [] } = useAppStore();
   const nav = useNavigate();
@@ -86,36 +116,6 @@ export default function Onboarding() {
     removeDriver(removeFor, removeComment.trim());
     setRemoveFor(null);
     setRemoveComment('');
-  };
-
-  // Styles
-  const depotBtnSx = {
-    borderRadius: 9999,
-    px: 2,
-    minHeight: 34,
-    border: '1px solid',
-    borderColor: 'rgba(46,76,30,0.35)',
-    color: 'primary.main',
-    fontWeight: 700,
-    '&:hover': { borderColor: 'primary.main', backgroundColor: 'transparent' },
-  };
-  const menuPaperSx = {
-    mt: 0.5,
-    minWidth: 200,
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: 'divider',
-    boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
-    overflow: 'hidden',
-  };
-  const navLikeItemSx = {
-    justifyContent: 'center',
-    textAlign: 'center',
-    px: 2,
-    py: 0.9,
-    fontSize: 14,
-    lineHeight: 1.25,
-    '&:hover': { backgroundColor: 'action.hover' },
   };
 
   return (

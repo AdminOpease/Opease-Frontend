@@ -2,8 +2,28 @@
 import { Drawer } from "expo-router/drawer";
 import { DrawerToggleButton } from "@react-navigation/drawer";
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "react-native";
+import { Image, View, Text, TouchableOpacity } from "react-native";
 import colors from "../theme/colors";
+
+// Expo Router ErrorBoundary — catches render errors in any child route
+export function ErrorBoundary({ error, retry }: { error: Error; retry: () => void }) {
+  return (
+    <View style={{ flex: 1, justifyContent: "center", alignItems: "center", padding: 24, backgroundColor: colors.secondary }}>
+      <Text style={{ fontWeight: "700", fontSize: 18, color: colors.text, marginBottom: 8 }}>
+        Something went wrong
+      </Text>
+      <Text style={{ color: "#6B7280", marginBottom: 20, textAlign: "center" }}>
+        {error.message}
+      </Text>
+      <TouchableOpacity
+        onPress={retry}
+        style={{ paddingVertical: 12, paddingHorizontal: 24, backgroundColor: colors.primary, borderRadius: 10 }}
+      >
+        <Text style={{ color: "#fff", fontWeight: "700" }}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 const Logo = () => (
   <Image

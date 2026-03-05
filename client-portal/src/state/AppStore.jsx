@@ -60,8 +60,8 @@ export function AppStoreProvider({ children }) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.error('Failed to load applications from localStorage:', e);
     }
     return makeDefaultApplications();
   });
@@ -70,8 +70,8 @@ export function AppStoreProvider({ children }) {
   React.useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_APPLICATIONS, JSON.stringify(applications));
-    } catch {
-      /* ignore quota/serialize errors */
+    } catch (e) {
+      console.error('Failed to persist applications to localStorage:', e);
     }
   }, [applications]);
 

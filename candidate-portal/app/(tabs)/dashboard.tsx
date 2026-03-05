@@ -150,7 +150,7 @@ export default function DashboardScreen() {
               {data?.messages?.length ? (
                 <FlatList
                   data={data.messages}
-                  keyExtractor={(item, idx) => `${idx}`}
+                  keyExtractor={(item) => item}
                   renderItem={({ item }) => <Text style={styles.messageItem}>• {item}</Text>}
                   ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
                   scrollEnabled={false}

@@ -65,7 +65,7 @@ export default function RequestChangeScreen() {
 
   const submit = () => {
     // Build a minimal payload for now (mock)
-    let payload: any = { section };
+    let payload: { section: string; current?: Record<string, string>; requested?: Record<string, string> } = { section };
 
     if (section === "Account") {
       payload.current = { email: current.email, phone: current.phone };
@@ -249,7 +249,7 @@ function Button({ label, onPress, primary }: { label: string; onPress: () => voi
   );
 }
 
-function getParam(obj: Record<string, any>, key: string): string {
+function getParam(obj: Record<string, string | string[] | undefined>, key: string): string {
   const v = obj?.[key];
   const s = Array.isArray(v) ? v[0] : v;
   return s ? String(s) : "";

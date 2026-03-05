@@ -15,6 +15,19 @@ const STYLES = {
   Offboarded: {
     bg: '#FBE9E9', text: '#C62828', border: '#F3B9B9',
   },
+  // Rota statuses
+  'Full Time': {
+    bg: '#E8F5E9', text: '#2E7D32', border: '#A5D6A7',
+  },
+  'Part Time': {
+    bg: '#FFF3E0', text: '#E65100', border: '#FFCC80',
+  },
+  'Lead Driver': {
+    bg: '#E3F2FD', text: '#0D47A1', border: '#90CAF9',
+  },
+  OSM: {
+    bg: '#F3E5F5', text: '#6A1B9A', border: '#CE93D8',
+  },
 };
 
 export default function StatusChip({ status = 'Onboarding', sx, ...props }) {
