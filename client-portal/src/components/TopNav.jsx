@@ -60,14 +60,14 @@ export default function TopNav() {
         onClose={() => setAnchorEl(null)}
         PaperProps={{ sx: { minWidth: 220 } }}
       >
-        <MenuItem component={Link} to="/admin/dashboard" onClick={() => setAnchorEl(null)}>
-          Dashboard
-        </MenuItem>
         <MenuItem component={Link} to="/admin/drivers" onClick={() => setAnchorEl(null)}>
           Drivers
         </MenuItem>
         <MenuItem component={Link} to="/admin/working-hours" onClick={() => setAnchorEl(null)}>
           Working Hours
+        </MenuItem>
+        <MenuItem component={Link} to="/admin/stations" onClick={() => setAnchorEl(null)}>
+          Stations
         </MenuItem>
         <MenuItem component={Link} to="/admin/expiring-docs" onClick={() => setAnchorEl(null)}>
           Expiring Documents

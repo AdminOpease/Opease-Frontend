@@ -14,6 +14,71 @@ import { useAppStore } from '../../state/AppStore.jsx';
 const ALL = 'All Depots';
 const STATUS_OPTIONS = ['All', 'Active', 'Inactive', 'Onboarding', 'Offboarded'];
 
+// Static style objects (extracted to avoid re-creation on every render)
+const pageSx = { mt: -10 };
+const card = {
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  height: 44,
+  display: 'flex',
+  alignItems: 'center'
+};
+const depotBtnSx = {
+  borderRadius: 9999,
+  px: 2,
+  minHeight: 34,
+  border: '1px solid',
+  borderColor: 'rgba(46,76,30,0.35)',
+  color: 'primary.main',
+  fontWeight: 700,
+  '&:hover': { borderColor: 'primary.main', backgroundColor: 'transparent' },
+};
+const statChip = {
+  height: 24,
+  borderRadius: 2,
+  fontSize: 11,
+  borderColor: 'divider',
+};
+const th = { fontWeight: 700 };
+const menuPaperSx = {
+  mt: 0.5,
+  minWidth: 200,
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
+  overflow: 'hidden',
+};
+const menuListSx = { py: 0 };
+const navLikeItemSx = {
+  justifyContent: 'center',
+  textAlign: 'center',
+  px: 2,
+  py: 0.9,
+  fontSize: 14,
+  lineHeight: 1.25,
+  '&:hover': { backgroundColor: 'action.hover' },
+};
+const rowMenuPaperSx = {
+  mt: 0.5,
+  minWidth: 140,
+  borderRadius: 1.5,
+  border: '1px solid',
+  borderColor: 'divider',
+  boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  overflow: 'hidden',
+};
+const rowMenuItemSx = {
+  justifyContent: 'center',
+  textAlign: 'center',
+  px: 1.25,
+  py: 0.6,
+  fontSize: 13,
+  lineHeight: 1.2,
+  '&:hover': { backgroundColor: 'action.hover' },
+};
+
 export default function AdminDrivers() {
   const { drivers = [], setDrivers } = useAppStore();
 
@@ -28,6 +93,7 @@ export default function AdminDrivers() {
 
   // Search (centered, compact)
   const [query, setQuery] = React.useState('');
+  const deferredQuery = React.useDeferredValue(query);
 
   // Status filter in header (defaults to Active)
   const [statusFilter, setStatusFilter] = React.useState('Active');
@@ -44,7 +110,7 @@ export default function AdminDrivers() {
   );
 
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     return byDepot
       .filter((d) =>
         !q
@@ -54,7 +120,7 @@ export default function AdminDrivers() {
             (d.phone || '').toLowerCase().includes(q)
       )
       .filter((d) => (statusFilter === 'All' ? true : d.status === statusFilter));
-  }, [byDepot, query, statusFilter]);
+  }, [byDepot, deferredQuery, statusFilter]);
 
   // Status counts (based on depot)
   const counts = React.useMemo(() => {
@@ -71,78 +137,6 @@ export default function AdminDrivers() {
     setDrivers((prev) =>
       prev.map((d) => (d.email === email ? { ...d, status: normalized } : d))
     );
-  };
-
-  // ---- styles ----
-  const pageSx = { mt: -10 };
-  const card = {
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: 'divider',
-    height: 44,
-    display: 'flex',
-    alignItems: 'center'
-  };
-
-  const depotBtnSx = {
-    borderRadius: 9999,
-    px: 2,
-    minHeight: 34,
-    border: '1px solid',
-    borderColor: 'rgba(46,76,30,0.35)',
-    color: 'primary.main',
-    fontWeight: 700,
-    '&:hover': { borderColor: 'primary.main', backgroundColor: 'transparent' },
-  };
-
-  const statChip = {
-    height: 24,
-    borderRadius: 2,
-    fontSize: 11,
-    borderColor: 'divider',
-  };
-
-  const th = { fontWeight: 700 };
-
-  // Shared "nav-style" menu look (Depot + Status)
-  const menuPaperSx = {
-    mt: 0.5,
-    minWidth: 200,
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: 'divider',
-    boxShadow: '0 6px 24px rgba(0,0,0,0.08)',
-    overflow: 'hidden',
-  };
-  const menuListSx = { py: 0 };
-  const navLikeItemSx = {
-    justifyContent: 'center',
-    textAlign: 'center',
-    px: 2,
-    py: 0.9,
-    fontSize: 14,
-    lineHeight: 1.25,
-    '&:hover': { backgroundColor: 'action.hover' },
-  };
-
-  // Condensed row Actions menu
-  const rowMenuPaperSx = {
-    mt: 0.5,
-    minWidth: 140,              // narrower
-    borderRadius: 1.5,
-    border: '1px solid',
-    borderColor: 'divider',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-    overflow: 'hidden',
-  };
-  const rowMenuItemSx = {
-    justifyContent: 'center',
-    textAlign: 'center',
-    px: 1.25,
-    py: 0.6,                    // tighter vertical padding
-    fontSize: 13,               // smaller text
-    lineHeight: 1.2,
-    '&:hover': { backgroundColor: 'action.hover' },
   };
 
   return (

@@ -158,7 +158,7 @@ export default function PhaseTable({
           <TableFooter>
             <TableRow>
               <TablePagination
-                component="div"
+                component="td"
                 count={rows.length}
                 page={page}
                 onPageChange={(_, newPage) => setPage(newPage)}

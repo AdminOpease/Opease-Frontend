@@ -12,6 +12,37 @@ import PhaseTable from '../../components/common/PhaseTable';
 const PREDCC_OPTIONS = ['In Review', 'FIR', 'Complete', 'DMR'];
 const DL_OPTIONS = ['Pending', 'Pass', 'Fail'];
 
+// Static style objects (extracted to avoid re-creation on every render)
+const headerRowSx = {
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  gap: 2,
+  flexWrap: 'wrap',
+  mt: 0,
+  mb: 1,
+};
+const pillGroupSx = {
+  borderRadius: 9999,
+  border: '1px solid',
+  borderColor: 'divider',
+  px: 1,
+  py: 0.75,
+  minHeight: 44,
+  display: 'flex',
+  alignItems: 'center',
+};
+const searchPillSx = {
+  borderRadius: 9999,
+  border: '1px solid',
+  borderColor: 'divider',
+  minHeight: 44,
+  display: 'flex',
+  alignItems: 'center',
+  px: 1.25,
+};
+const chipSx = { borderRadius: 9999, fontWeight: 700 };
+
 export default function OnboardingPhase1() {
   const {
     phase1, phase2, colsPhase1, setRemoveFor,
@@ -21,8 +52,9 @@ export default function OnboardingPhase1() {
 
   // Search
   const [query, setQuery] = React.useState('');
+  const deferredQuery = React.useDeferredValue(query);
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return phase1;
     return phase1.filter(
       (r) =>
@@ -30,7 +62,7 @@ export default function OnboardingPhase1() {
         (r.email || '').toLowerCase().includes(q) ||
         (r.phone || '').toLowerCase().includes(q)
     );
-  }, [phase1, query]);
+  }, [phase1, deferredQuery]);
 
   // Pre-DCC
   const PreDccEditor = ({ row }) => {
@@ -127,37 +159,6 @@ export default function OnboardingPhase1() {
       </Select>
     );
   };
-
-  // Header styling
-  const headerRowSx = {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 2,
-    flexWrap: 'wrap',
-    mt: 0,
-    mb: 1,
-  };
-  const pillGroupSx = {
-    borderRadius: 9999,
-    border: '1px solid',
-    borderColor: 'divider',
-    px: 1,
-    py: 0.75,
-    minHeight: 44,
-    display: 'flex',
-    alignItems: 'center',
-  };
-  const searchPillSx = {
-    borderRadius: 9999,
-    border: '1px solid',
-    borderColor: 'divider',
-    minHeight: 44,
-    display: 'flex',
-    alignItems: 'center',
-    px: 1.25,
-  };
-  const chipSx = { borderRadius: 9999, fontWeight: 700 };
 
   return (
     <Box>

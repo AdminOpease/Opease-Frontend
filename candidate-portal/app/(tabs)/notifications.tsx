@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { ScrollView, View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native";
 import * as WebBrowser from "expo-web-browser";
-import { useRouter } from "expo-router";
+import { useRouter, type Href } from "expo-router";
 import colors from "../../theme/colors";
 
 /* ---------------- Types ---------------- */
@@ -33,7 +33,7 @@ function useClientPortalCommunications() {
   useEffect(() => {
     // TODO: replace with real fetch from Client Portal
     const now = Date.now();
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setData([
         {
           id: "c1",
@@ -51,6 +51,7 @@ function useClientPortalCommunications() {
         },
       ]);
     }, 200);
+    return () => clearTimeout(timer);
   }, []);
   return { communications: data, setCommunications: setData };
 }
@@ -188,7 +189,7 @@ export default function NotificationsScreen() {
     if (c.href?.startsWith("http")) {
       await WebBrowser.openBrowserAsync(c.href);
     } else if (c.href) {
-      router.push(c.href as any);
+      router.push(c.href as Href);
     }
   };
 
@@ -220,7 +221,7 @@ export default function NotificationsScreen() {
             keyExtractor={(t) => t.id}
             renderItem={({ item }) => <TaskItem task={item} onOpen={(t) => {
               if (t.href?.startsWith("http")) WebBrowser.openBrowserAsync(t.href);
-              else if (t.route) router.push(t.route as any);
+              else if (t.route) router.push(t.route as Href);
             }} />}
             ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
             scrollEnabled={false}

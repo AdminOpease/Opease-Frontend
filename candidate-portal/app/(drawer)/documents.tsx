@@ -173,7 +173,7 @@ export default function DocumentsScreen() {
           return { ...g, items: rest, subgroups: updatedSubs };
         }
         const updatedOld: DocGroup = { ...old, items: [...old.items, item] };
-        const updatedSubs = g.subgroups!.map((sg) => (sg.id === old.id ? updatedOld : sg));
+        const updatedSubs = (g.subgroups ?? []).map((sg) => (sg.id === old.id ? updatedOld : sg));
         return { ...g, items: rest, subgroups: updatedSubs };
       })
     );

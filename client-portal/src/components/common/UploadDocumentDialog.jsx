@@ -1,12 +1,15 @@
 // src/components/common/UploadDocumentDialog.jsx
 import * as React from 'react';
 import {
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Stack, MenuItem, Typography
+  Dialog, DialogContent, DialogActions,
+  TextField, Button, Stack, MenuItem, Typography, Box, Divider,
 } from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 
 const DOC_TYPES = [
-  'Driver’s Licence',
+  "Driver's Licence",
   'Identification',
   'Right to Work',
   'National Insurance',
@@ -15,15 +18,27 @@ const DOC_TYPES = [
   'Other',
 ];
 
-export default function UploadDocumentDialog({
-  open,
-  onClose,
-  onSubmit,            // ({ title, files, type, expiryDate }) => void
-}) {
+const fieldSx = { '& .MuiInputBase-root': { height: 36 } };
+
+const dropZoneSx = (isDragging) => ({
+  border: '2px dashed',
+  borderColor: isDragging ? 'primary.main' : 'divider',
+  borderRadius: 2,
+  bgcolor: isDragging ? 'rgba(46,76,30,0.04)' : '#FAFAFA',
+  p: 3,
+  textAlign: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.15s ease',
+  '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(46,76,30,0.02)' },
+});
+
+export default function UploadDocumentDialog({ open, onClose, onSubmit }) {
   const [title, setTitle] = React.useState('');
   const [type, setType] = React.useState(DOC_TYPES[0]);
-  const [expiryDate, setExpiryDate] = React.useState(''); // optional
+  const [expiryDate, setExpiryDate] = React.useState('');
   const [files, setFiles] = React.useState([]);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const inputRef = React.useRef(null);
 
   React.useEffect(() => {
     if (!open) {
@@ -31,75 +46,139 @@ export default function UploadDocumentDialog({
       setType(DOC_TYPES[0]);
       setExpiryDate('');
       setFiles([]);
+      setIsDragging(false);
     }
   }, [open]);
 
   const handleFiles = (e) => setFiles(Array.from(e.target.files || []));
 
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const dropped = Array.from(e.dataTransfer.files || []);
+    if (dropped.length) setFiles(dropped);
+  };
+
   const canSubmit = title.trim().length > 0 && files.length > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ py: 1.25, fontSize: 16, fontWeight: 700 }}>
-        Upload Document
-      </DialogTitle>
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden' } }}
+    >
+      {/* Header */}
+      <Box sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+        <Stack direction="row" alignItems="center" spacing={1}>
+          <UploadFileIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+          <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Upload Document</Typography>
+        </Stack>
+      </Box>
 
-      <DialogContent sx={{ pt: 0.5 }}>
-        <Stack spacing={1.25}>
-          <TextField
-            label="Title"
-            size="small"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            helperText="Give the document a clear name (e.g., Driving Licence Front)"
-          />
+      <Divider />
 
-          <Button
-            component="label"
-            variant="outlined"
-            size="small"
-            sx={{ alignSelf: 'flex-start' }}
-          >
-            Choose file(s)
-            <input type="file" hidden multiple onChange={handleFiles} />
-          </Button>
-          {files.length > 0 && (
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              {files.length} file(s) selected
-            </Typography>
-          )}
+      <DialogContent sx={{ px: 3, py: 2.5 }}>
+        <Stack spacing={2}>
+          {/* Title */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Document Title</Typography>
+            <TextField
+              fullWidth
+              size="small"
+              placeholder="e.g., Driving Licence Front"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              sx={fieldSx}
+            />
+          </Box>
 
-          <TextField
-            select
-            label="Document Type"
-            size="small"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            {DOC_TYPES.map((t) => (
-              <MenuItem key={t} value={t}>{t}</MenuItem>
-            ))}
-          </TextField>
+          {/* File drop zone */}
+          <Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>File</Typography>
+            <Box
+              sx={dropZoneSx(isDragging)}
+              onClick={() => inputRef.current?.click()}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+            >
+              <input ref={inputRef} type="file" hidden multiple onChange={handleFiles} />
+              {files.length === 0 ? (
+                <>
+                  <CloudUploadIcon sx={{ fontSize: 32, color: 'text.secondary', mb: 0.5 }} />
+                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>
+                    Click to upload or drag and drop
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+                    PDF, JPG, PNG up to 10MB
+                  </Typography>
+                </>
+              ) : (
+                <Stack spacing={0.5} alignItems="center">
+                  <InsertDriveFileIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+                  <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                    {files.length} file{files.length > 1 ? 's' : ''} selected
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                    {files.map((f) => f.name).join(', ')}
+                  </Typography>
+                </Stack>
+              )}
+            </Box>
+          </Box>
 
-          <TextField
-            label="Expiry Date (optional)"
-            size="small"
-            type="date"
-            value={expiryDate}
-            onChange={(e) => setExpiryDate(e.target.value)}
-            InputLabelProps={{ shrink: true }}
-            helperText="Not required. Add if the document has an expiry."
-          />
+          {/* Type + Expiry side by side */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Document Type</Typography>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+                sx={fieldSx}
+              >
+                {DOC_TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>{t}</MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            <Box sx={{ flex: 1 }}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Expiry Date <Typography component="span" sx={{ fontSize: 11, color: 'text.secondary', fontWeight: 400 }}>(optional)</Typography></Typography>
+              <TextField
+                fullWidth
+                size="small"
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={fieldSx}
+              />
+            </Box>
+          </Stack>
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{ p: 1.25 }}>
-        <Button onClick={onClose} size="small" variant="text">Cancel</Button>
+      <Divider />
+
+      <DialogActions sx={{ px: 3, py: 1.5, justifyContent: 'flex-end' }}>
+        <Button
+          onClick={onClose}
+          size="small"
+          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 600, px: 2, color: 'text.secondary' }}
+        >
+          Cancel
+        </Button>
         <Button
           onClick={() => onSubmit?.({ title: title.trim(), files, type, expiryDate: expiryDate || null })}
           size="small"
           variant="contained"
           disabled={!canSubmit}
+          startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
+          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2.5 }}
         >
           Upload
         </Button>

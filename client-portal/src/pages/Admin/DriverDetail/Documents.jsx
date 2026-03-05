@@ -1,21 +1,70 @@
 // src/pages/Admin/DriverDetail/Documents.jsx
 import * as React from 'react';
 import {
-  Box, Typography, Paper, Button, Stack,
-  Table, TableHead, TableRow, TableCell, TableBody
+  Box, Typography, Paper, Button, Stack, Chip, Divider,
+  Table, TableHead, TableRow, TableCell, TableBody,
 } from '@mui/material';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
+import ArchiveIcon from '@mui/icons-material/Archive';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useParams } from 'react-router-dom';
 import UploadDocumentDialog from '../../../components/common/UploadDocumentDialog.jsx';
 import ConfirmDialog from '../../../components/common/ConfirmDialog.jsx';
 import { useAppStore } from '../../../state/AppStore.jsx';
 
-const todayISO = () => new Date().toISOString().slice(0, 10); // yyyy-mm-dd
+const todayISO = () => new Date().toISOString().slice(0, 10);
 const msInDay = 24 * 60 * 60 * 1000;
 const within30Days = (deletedAt) => {
   if (!deletedAt) return false;
-  const diff = Date.now() - new Date(deletedAt).getTime();
-  return diff <= 30 * msInDay;
+  return Date.now() - new Date(deletedAt).getTime() <= 30 * msInDay;
 };
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(`${dateStr}T00:00:00`);
+  return Math.ceil((d - new Date()) / msInDay);
+}
+
+// --- Extracted styles ---
+const tablePaperSx = {
+  borderRadius: 2,
+  border: '1px solid',
+  borderColor: 'divider',
+  overflow: 'hidden',
+};
+
+const filterBtnSx = (active) => ({
+  borderRadius: 9999,
+  textTransform: 'none',
+  fontWeight: active ? 700 : 600,
+  px: 1.5,
+  fontSize: 12,
+  border: '1px solid',
+  borderColor: active ? 'primary.main' : 'divider',
+  color: active ? 'primary.main' : 'text.secondary',
+  bgcolor: active ? 'rgba(46,76,30,0.06)' : 'transparent',
+  '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(46,76,30,0.04)' },
+});
+
+const thSx = { fontWeight: 700, fontSize: 12 };
+
+function ExpiryCell({ date }) {
+  if (!date) return <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>&mdash;</Typography>;
+  const days = daysUntil(date);
+  const isExpired = days !== null && days < 0;
+  const isExpiring = days !== null && days >= 0 && days <= 30;
+  return (
+    <Stack direction="row" alignItems="center" spacing={0.75}>
+      <Typography sx={{ fontSize: 12 }}>{date}</Typography>
+      {isExpired && (
+        <Chip label="Expired" size="small" sx={{ fontSize: 10, height: 18, borderRadius: 999, bgcolor: '#FBE9E9', color: '#C62828', borderColor: '#F3B9B9' }} variant="outlined" />
+      )}
+      {isExpiring && (
+        <Chip label={`${days}d`} size="small" sx={{ fontSize: 10, height: 18, borderRadius: 999, bgcolor: '#FFF6E5', color: '#B26A00', borderColor: '#F3D3A6' }} variant="outlined" />
+      )}
+    </Stack>
+  );
+}
 
 export default function DriverDocuments() {
   const { email } = useParams();
@@ -23,80 +72,98 @@ export default function DriverDocuments() {
 
   const driver = React.useMemo(
     () => drivers.find((d) => d.email === email),
-    [drivers, email]
+    [drivers, email],
   );
 
   const [uploadOpen, setUploadOpen] = React.useState(false);
-  const [confirm, setConfirm] = React.useState({ open: false, docId: null });         // delete -> recycle bin
-  const [moveConfirm, setMoveConfirm] = React.useState({ open: false, docId: null }); // move -> Old (archive)
-  const [showDeleted, setShowDeleted] = React.useState(false);
-  const [showArchived, setShowArchived] = React.useState(false);
+  const [confirm, setConfirm] = React.useState({ open: false, docId: null });
+  const [moveConfirm, setMoveConfirm] = React.useState({ open: false, docId: null });
+  const [view, setView] = React.useState('active'); // 'active' | 'archived' | 'deleted'
 
-  // Slice documents for this driver
   const docsForDriver = React.useMemo(
     () => documents.filter((d) => d.driverEmail === email),
-    [documents, email]
+    [documents, email],
   );
 
   const activeRows   = docsForDriver.filter((d) => !d.deletedAt && d.status !== 'archived');
   const archivedRows = docsForDriver.filter((d) => d.status === 'archived' && !d.deletedAt);
   const deletedRows  = docsForDriver.filter((d) => d.deletedAt && within30Days(d.deletedAt));
 
-  const rowsToRender = showDeleted ? deletedRows : showArchived ? archivedRows : activeRows;
+  const rowsToRender = view === 'deleted' ? deletedRows : view === 'archived' ? archivedRows : activeRows;
+  const counts = { active: activeRows.length, archived: archivedRows.length, deleted: deletedRows.length };
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Documents</Typography>
-        <Stack direction="row" spacing={1}>
-          <Button size="small" variant="text" onClick={() => setShowArchived(v => !v)}>
-            {showArchived ? 'Hide Archived' : 'Show Archived'}
-          </Button>
-          <Button size="small" variant="text" onClick={() => setShowDeleted((v) => !v)}>
-            {showDeleted ? 'Show Active' : 'Recently Deleted'}
-          </Button>
-          <Button size="small" variant="contained" onClick={() => setUploadOpen(true)}>
-            Upload
-          </Button>
-        </Stack>
+      {/* Filter pills + Upload — single row */}
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+        <Button size="small" variant="outlined" onClick={() => setView('active')} sx={filterBtnSx(view === 'active')}>
+          Active ({counts.active})
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<ArchiveIcon sx={{ fontSize: 14 }} />}
+          onClick={() => setView('archived')}
+          sx={filterBtnSx(view === 'archived')}
+        >
+          Archived ({counts.archived})
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<DeleteOutlineIcon sx={{ fontSize: 14 }} />}
+          onClick={() => setView('deleted')}
+          sx={filterBtnSx(view === 'deleted')}
+        >
+          Deleted ({counts.deleted})
+        </Button>
+        <Box sx={{ flex: 1 }} />
+        <Button
+          size="small"
+          variant="contained"
+          startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
+          onClick={() => setUploadOpen(true)}
+          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
+        >
+          Upload
+        </Button>
       </Stack>
 
-      <Paper>
+      {/* Table */}
+      <Paper variant="outlined" sx={tablePaperSx}>
         <Table size="small" stickyHeader>
           <TableHead>
             <TableRow>
-              <TableCell>Title</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell>Uploaded</TableCell>
-              <TableCell>Expiry (optional)</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell align="right">Actions</TableCell>
+              <TableCell sx={{ ...thSx, pl: 2 }}>Title</TableCell>
+              <TableCell sx={thSx}>Type</TableCell>
+              <TableCell sx={thSx}>Uploaded</TableCell>
+              <TableCell sx={thSx}>Expiry</TableCell>
+              <TableCell sx={thSx} align="right" />
             </TableRow>
           </TableHead>
           <TableBody>
             {rowsToRender.map((doc) => (
               <TableRow key={doc.id} hover>
-                <TableCell sx={{ minWidth: 200 }}>{doc.title}</TableCell>
-                <TableCell>{doc.type}</TableCell>
-                <TableCell>{doc.uploadedAt}</TableCell>
-                <TableCell>{doc.expiryDate || '—'}</TableCell>
+                <TableCell sx={{ pl: 2, fontWeight: 600, fontSize: 12 }}>{doc.title}</TableCell>
                 <TableCell>
-                  {showDeleted
-                    ? (() => {
-                        const remaining =
-                          30 - Math.floor((Date.now() - new Date(doc.deletedAt).getTime()) / msInDay);
-                        return `Deleted • ${Math.max(0, remaining)}d left`;
-                      })()
-                    : (doc.status === 'archived' ? 'Archived (Old)' : doc.status)}
+                  <Chip
+                    label={doc.type}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: 11, height: 22, borderRadius: 999, borderColor: 'divider' }}
+                  />
                 </TableCell>
+                <TableCell sx={{ fontSize: 12 }}>{doc.uploadedAt}</TableCell>
+                <TableCell><ExpiryCell date={doc.expiryDate} /></TableCell>
                 <TableCell align="right">
-                  {!showDeleted && !showArchived ? (
-                    <>
-                      <Button size="small" variant="text">Preview</Button>
-                      <Button size="small" variant="text">Download</Button>
+                  {view === 'active' && (
+                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                      <Button size="small" variant="text" sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}>Preview</Button>
+                      <Button size="small" variant="text" sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}>Download</Button>
                       <Button
                         size="small"
                         variant="text"
+                        sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}
                         onClick={() => setMoveConfirm({ open: true, docId: doc.id })}
                       >
                         Move
@@ -105,15 +172,18 @@ export default function DriverDocuments() {
                         size="small"
                         color="error"
                         variant="text"
+                        sx={{ fontSize: 11, textTransform: 'none', minWidth: 0 }}
                         onClick={() => setConfirm({ open: true, docId: doc.id })}
                       >
                         Delete
                       </Button>
-                    </>
-                  ) : showDeleted ? (
+                    </Stack>
+                  )}
+                  {view === 'deleted' && (
                     <Button
                       size="small"
                       variant="text"
+                      sx={{ fontSize: 11, textTransform: 'none' }}
                       onClick={() => {
                         setDocuments((prev) =>
                           prev.map((d) => (d.id === doc.id ? { ...d, deletedAt: null } : d))
@@ -122,13 +192,15 @@ export default function DriverDocuments() {
                     >
                       Restore
                     </Button>
-                  ) : (
+                  )}
+                  {view === 'archived' && (
                     <Button
                       size="small"
                       variant="text"
+                      sx={{ fontSize: 11, textTransform: 'none' }}
                       onClick={() => {
-                        setDocuments(prev =>
-                          prev.map(d =>
+                        setDocuments((prev) =>
+                          prev.map((d) =>
                             d.id === doc.id ? { ...d, status: 'active', archivedAt: null } : d
                           )
                         );
@@ -142,8 +214,13 @@ export default function DriverDocuments() {
             ))}
             {rowsToRender.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  {showDeleted ? 'No items in recycle bin.' : showArchived ? 'No archived documents.' : 'No documents to show.'}
+                <TableCell colSpan={5} sx={{ py: 4, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary', fontWeight: 600 }}>
+                    {view === 'deleted' ? 'No items in recycle bin' : view === 'archived' ? 'No archived documents' : 'No documents uploaded yet'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                    {view === 'active' ? 'Upload a document to get started.' : ''}
+                  </Typography>
                 </TableCell>
               </TableRow>
             )}
@@ -161,14 +238,13 @@ export default function DriverDocuments() {
             title,
             type,
             uploadedAt: todayISO(),
-            expiryDate: expiryDate || null, // optional
+            expiryDate: expiryDate || null,
             status: 'active',
             deletedAt: null,
             archivedAt: null,
-            // store fields needed by Dashboard / ExpiringDocs
             driverEmail: email,
             driverName: driver?.name || email,
-            depot: driver?.depot || 'Heathrow', // fallback if driver missing
+            depot: driver?.depot || 'Heathrow',
           };
           setDocuments((prev) => [newDoc, ...prev]);
           setUploadOpen(false);
@@ -197,19 +273,19 @@ export default function DriverDocuments() {
         onClose={() => setConfirm({ open: false, docId: null })}
       />
 
-      {/* Move to Old (archive) confirmation */}
+      {/* Move to Archive confirmation */}
       <ConfirmDialog
         open={moveConfirm.open}
-        title="Move to Old?"
-        subtitle="This will archive the document under its type’s Old folder."
+        title="Move to Archive?"
+        subtitle="This will archive the document."
         message="You can unarchive later if needed."
-        confirmLabel="Move to Old"
+        confirmLabel="Move to Archive"
         cancelLabel="Cancel"
         tone="default"
         requireAcknowledge={false}
         onConfirm={() => {
-          setDocuments(prev =>
-            prev.map(d =>
+          setDocuments((prev) =>
+            prev.map((d) =>
               d.id === moveConfirm.docId
                 ? { ...d, status: 'archived', archivedAt: new Date().toISOString() }
                 : d

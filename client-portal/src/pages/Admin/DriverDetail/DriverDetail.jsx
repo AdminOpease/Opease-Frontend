@@ -2,13 +2,31 @@
 import * as React from 'react';
 import { useParams, Link as RouterLink, Outlet, useLocation } from 'react-router-dom';
 import { Box, Paper, Stack, Typography, Button, Divider } from '@mui/material';
+import PersonIcon from '@mui/icons-material/Person';
+import DescriptionIcon from '@mui/icons-material/Description';
 import StatusChip from '../../../components/common/StatusChip';
 
 const TABS = [
-  { label: 'Profile', path: 'profile' },
-  { label: 'Documents', path: 'documents' },
-  // Performance & Invoices excluded for now
+  { label: 'Profile', path: 'profile', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
+  { label: 'Documents', path: 'documents', icon: <DescriptionIcon sx={{ fontSize: 16 }} /> },
 ];
+
+const navBtnSx = (active) => ({
+  justifyContent: 'flex-start',
+  borderRadius: 2,
+  textTransform: 'none',
+  fontWeight: 700,
+  px: 1.5,
+  gap: 0.75,
+  bgcolor: active ? 'primary.main' : '#fff',
+  color: active ? '#fff' : 'text.primary',
+  border: '1px solid',
+  borderColor: active ? 'primary.main' : 'divider',
+  '&:hover': {
+    bgcolor: active ? 'primary.dark' : '#fff',
+    borderColor: 'primary.main',
+  },
+});
 
 export default function DriverDetailLayout() {
   const { email } = useParams();
@@ -19,20 +37,23 @@ export default function DriverDetailLayout() {
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Typography variant="h6" sx={{ mr: 1 }}>{email}</Typography>
-          <StatusChip status={status} />
-        </Stack>
+      {/* Page header */}
+      <Stack direction="row" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="h6" sx={{ mr: 1.5 }}>{email}</Typography>
+        <StatusChip status={status} />
       </Stack>
 
-      <Paper>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-          {/* Left sidebar */}
-          <Box sx={{ width: 220, flexShrink: 0 }}>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>Driver</Typography>
-            <Stack spacing={0.5}>
-              {TABS.map(tab => {
+      {/* Sidebar + content — both on grey bg */}
+      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
+        {/* Sidebar */}
+        <Box sx={{ width: { md: 180 }, flexShrink: 0 }}>
+          {/* Nav card */}
+          <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
+              Driver
+            </Typography>
+            <Stack spacing={0.75}>
+              {TABS.map((tab) => {
                 const to = `/admin/drivers/${encodeURIComponent(email)}/${tab.path}`;
                 const active = pathname.startsWith(to);
                 return (
@@ -41,38 +62,30 @@ export default function DriverDetailLayout() {
                     component={RouterLink}
                     to={to}
                     size="small"
-                    variant={active ? 'contained' : 'text'}
-                    color="primary"
-                    sx={{
-                      justifyContent: 'flex-start',
-                      borderRadius: 999,
-                      textTransform: 'none',
-                      fontWeight: 700,
-                      px: 1.25,
-                      ...(active ? { color: '#fff' } : { color: 'text.primary' }),
-                    }}
+                    sx={navBtnSx(active)}
+                    startIcon={tab.icon}
                   >
                     {tab.label}
                   </Button>
                 );
               })}
             </Stack>
+          </Paper>
 
-            <Divider sx={{ my: 2 }} />
-
-            {/* Status selector will live here later (frontend-only for now) */}
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+          {/* Status card */}
+          <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
               Status
             </Typography>
             <StatusChip status={status} />
-          </Box>
+          </Paper>
+        </Box>
 
-          {/* Right content */}
-          <Box sx={{ flex: 1 }}>
-            <Outlet />
-          </Box>
-        </Stack>
-      </Paper>
+        {/* Content */}
+        <Box sx={{ flex: 1 }}>
+          <Outlet />
+        </Box>
+      </Stack>
     </Box>
   );
 }

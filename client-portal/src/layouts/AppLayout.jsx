@@ -27,11 +27,13 @@ function NavLinkText({ to, children, active }) {
 export default function AppLayout() {
   const { pathname } = useLocation();
 
-  // Menus: recruitment + admin
-  const [recruitAnchor, setRecruitAnchor] = React.useState(null);
+  // Menus: admin + operations + recruitment
   const [adminAnchor, setAdminAnchor] = React.useState(null);
-  const recruitOpen = Boolean(recruitAnchor);
+  const [opsAnchor, setOpsAnchor] = React.useState(null);
+  const [recruitAnchor, setRecruitAnchor] = React.useState(null);
   const adminOpen = Boolean(adminAnchor);
+  const opsOpen = Boolean(opsAnchor);
+  const recruitOpen = Boolean(recruitAnchor);
 
   // --- Condensed menu styling ---
   const menuPaperSx = {
@@ -61,17 +63,17 @@ export default function AppLayout() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'transparent' }}>
-      <AppBar position="sticky" elevation={0} sx={{ bgcolor: 'transparent', color: 'text.primary' }}>
-        <Container maxWidth={false} disableGutters sx={{ py: 6, px: { xs: 2, sm: 3, md: 4 } }}>
+      <AppBar position="static" elevation={0} sx={{ bgcolor: 'transparent', color: 'text.primary' }}>
+        <Container maxWidth={false} disableGutters sx={{ pt: 2, pb: 1.5, px: { xs: 2, sm: 3, md: 4 } }}>
           {/* Top row: centered logo */}
           <Box
             sx={{
               position: 'relative',
-              height: 56,
+              height: 70,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              mb: 3,
+              mb: 1,
             }}
           >
             <img src={Logo} alt="Logo" style={{ height: 100, display: 'block' }} />
@@ -124,6 +126,59 @@ export default function AppLayout() {
                   component={Link}
                   to={to}
                   onClick={() => setAdminAnchor(null)}
+                  selected={pathname === to}
+                  sx={menuItemSx}
+                >
+                  {label}
+                </MenuItem>
+              ))}
+            </Menu>
+
+            {/* Operations dropdown */}
+            <Button
+              variant={pathname.startsWith('/operations') ? 'contained' : 'outlined'}
+              color="primary"
+              onClick={(e) => setOpsAnchor(e.currentTarget)}
+              endIcon={
+                <ExpandMoreIcon
+                  sx={{ transition: '0.2s', transform: opsOpen ? 'rotate(180deg)' : 'none' }}
+                />
+              }
+              sx={{
+                mx: 1,
+                fontWeight: 700,
+                borderRadius: 9999,
+                px: 2,
+                py: 0.75,
+                fontSize: 12,
+                ...(pathname.startsWith('/operations')
+                  ? { color: 'white', borderColor: 'primary.main' }
+                  : { borderColor: 'rgba(46,76,30,0.35)' }),
+              }}
+            >
+              Operations
+            </Button>
+
+            <Menu
+              anchorEl={opsAnchor}
+              open={opsOpen}
+              onClose={() => setOpsAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+              PaperProps={{ sx: menuPaperSx }}
+              MenuListProps={{ dense: true, sx: menuListSx }}
+            >
+              {[
+                { to: '/operations/rota', label: 'Rota' },
+                { to: '/operations/vans', label: 'Vans' },
+                { to: '/operations/plan', label: 'Plan' },
+                { to: '/operations/performance', label: 'Performance' },
+              ].map(({ to, label }) => (
+                <MenuItem
+                  key={to}
+                  component={Link}
+                  to={to}
+                  onClick={() => setOpsAnchor(null)}
                   selected={pathname === to}
                   sx={menuItemSx}
                 >
@@ -193,7 +248,7 @@ export default function AppLayout() {
         <Container
           maxWidth={false}
           disableGutters
-          sx={{ py: 3, px: { xs: 2, sm: 3, md: 4, lg: 6 } }}
+          sx={{ pt: 2, pb: 3, px: { xs: 2, sm: 3, md: 4, lg: 6 } }}
         >
           <Outlet />
         </Container>
