@@ -172,7 +172,6 @@ export default function AppLayout() {
                 { to: '/operations/rota', label: 'Rota' },
                 { to: '/operations/vans', label: 'Vans' },
                 { to: '/operations/plan', label: 'Plan' },
-                { to: '/operations/performance', label: 'Performance' },
               ].map(({ to, label }) => (
                 <MenuItem
                   key={to}

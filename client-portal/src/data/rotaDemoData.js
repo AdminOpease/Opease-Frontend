@@ -24,7 +24,7 @@ export const SHIFT_CODES = {
 };
 
 // Work-type codes that count toward weekly totals
-const WORK_CODES = new Set(['W', 'Office', 'OfficeLD', 'SD', 'Fleet', 'SB', 'DR', 'C', 'C2', 'NL3', '1P', 'SWA', 'DHW', 'MT']);
+export const WORK_CODES = new Set(['W', 'Office', 'OfficeLD', 'SD', 'Fleet', 'SB', 'DR', 'C', 'C2', 'NL3', '1P', 'SWA', 'DHW', 'MT']);
 
 export function countWorkDays(shifts) {
   return shifts.filter((c) => WORK_CODES.has(c)).length;
@@ -61,21 +61,21 @@ export const ROTA_WEEKS = buildWeeks();
 
 // ── Demo drivers ────────────────────────────────────────────────────
 export const ROTA_DRIVERS = [
-  { id: 1,  name: 'Amy Jones',        status: 'Full Time',   amazonId: 'AMZN001', phone: '+447700900111', left: 0 },
-  { id: 2,  name: 'Ben Carter',       status: 'Full Time',   amazonId: 'AMZN002', phone: '+447700900112', left: 0 },
-  { id: 3,  name: 'Cara Smith',       status: 'Part Time',   amazonId: 'AMZN003', phone: '+447700900113', left: 0 },
-  { id: 4,  name: 'Dan Okafor',       status: 'Full Time',   amazonId: 'AMZN004', phone: '+447700900114', left: 0 },
-  { id: 5,  name: 'Elena Rivera',     status: 'Lead Driver', amazonId: 'AMZN005', phone: '+447700900115', left: 0 },
-  { id: 6,  name: 'Faisal Khan',      status: 'Full Time',   amazonId: 'AMZN006', phone: '+447700900116', left: 0 },
-  { id: 7,  name: 'Grace Obi',        status: 'OSM',         amazonId: 'AMZN007', phone: '+447700900117', left: 0 },
-  { id: 8,  name: 'Harry Nguyen',     status: 'Full Time',   amazonId: 'AMZN008', phone: '+447700900118', left: 0 },
-  { id: 9,  name: 'Isla Brown',       status: 'Part Time',   amazonId: 'AMZN009', phone: '+447700900119', left: 0 },
-  { id: 10, name: 'James Patel',      status: 'Full Time',   amazonId: 'AMZN010', phone: '+447700900120', left: 0 },
-  { id: 11, name: 'Kira Mbeki',       status: 'Full Time',   amazonId: 'AMZN011', phone: '+447700900121', left: 0 },
-  { id: 12, name: 'Liam O\'Brien',    status: 'Lead Driver', amazonId: 'AMZN012', phone: '+447700900122', left: 0 },
-  { id: 13, name: 'Mia Zhang',        status: 'Full Time',   amazonId: 'AMZN013', phone: '+447700900123', left: 1 },
-  { id: 14, name: 'Noah Wilson',      status: 'OSM',         amazonId: 'AMZN014', phone: '+447700900124', left: 0 },
-  { id: 15, name: 'Olivia Fernandez', status: 'Part Time',   amazonId: 'AMZN015', phone: '+447700900125', left: 0 },
+  { id: 1,  name: 'Amy Jones',        status: 'Full Time',   amazonId: 'AMZN001', phone: '+447700900111', left: 0, depot: 'Heathrow' },
+  { id: 2,  name: 'Ben Carter',       status: 'Full Time',   amazonId: 'AMZN002', phone: '+447700900112', left: 0, depot: 'Heathrow' },
+  { id: 3,  name: 'Cara Smith',       status: 'Part Time',   amazonId: 'AMZN003', phone: '+447700900113', left: 0, depot: 'Greenwich' },
+  { id: 4,  name: 'Dan Okafor',       status: 'Full Time',   amazonId: 'AMZN004', phone: '+447700900114', left: 0, depot: 'Heathrow' },
+  { id: 5,  name: 'Elena Rivera',     status: 'Lead Driver', amazonId: 'AMZN005', phone: '+447700900115', left: 0, depot: 'Battersea' },
+  { id: 6,  name: 'Faisal Khan',      status: 'Full Time',   amazonId: 'AMZN006', phone: '+447700900116', left: 0, depot: 'Greenwich' },
+  { id: 7,  name: 'Grace Obi',        status: 'OSM',         amazonId: 'AMZN007', phone: '+447700900117', left: 0, depot: 'Battersea' },
+  { id: 8,  name: 'Harry Nguyen',     status: 'Full Time',   amazonId: 'AMZN008', phone: '+447700900118', left: 0, depot: 'Heathrow' },
+  { id: 9,  name: 'Isla Brown',       status: 'Part Time',   amazonId: 'AMZN009', phone: '+447700900119', left: 0, depot: 'Greenwich' },
+  { id: 10, name: 'James Patel',      status: 'Full Time',   amazonId: 'AMZN010', phone: '+447700900120', left: 0, depot: 'Heathrow' },
+  { id: 11, name: 'Kira Mbeki',       status: 'Full Time',   amazonId: 'AMZN011', phone: '+447700900121', left: 0, depot: 'Battersea' },
+  { id: 12, name: 'Liam O\'Brien',    status: 'Lead Driver', amazonId: 'AMZN012', phone: '+447700900122', left: 0, depot: 'Greenwich' },
+  { id: 13, name: 'Mia Zhang',        status: 'Full Time',   amazonId: 'AMZN013', phone: '+447700900123', left: 1, depot: 'Battersea' },
+  { id: 14, name: 'Noah Wilson',      status: 'OSM',         amazonId: 'AMZN014', phone: '+447700900124', left: 0, depot: 'Heathrow' },
+  { id: 15, name: 'Olivia Fernandez', status: 'Part Time',   amazonId: 'AMZN015', phone: '+447700900125', left: 0, depot: 'Battersea' },
 ];
 
 // ── Demo schedule ───────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 // client-portal/src/state/AppStore.jsx
 import * as React from 'react';
 
-const DEPOTS = ['Heathrow', 'Greenwich', 'Battersea'];
+const DEPOTS = ['DLU2', 'Heathrow', 'Greenwich', 'Battersea'];
 
 const initialDrivers = [
   { email: 'amy@example.com',  name: 'Amy Jones',  phone: '+447700900111', status: 'Active',     depot: 'Heathrow' },

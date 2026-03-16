@@ -31,6 +31,8 @@ const OpsRota = React.lazy(() => import('./pages/Operations/Rota.jsx'))
 const OpsVans = React.lazy(() => import('./pages/Operations/Vans.jsx'))
 const OpsPerformance = React.lazy(() => import('./pages/Operations/Performance.jsx'))
 const OpsPlan = React.lazy(() => import('./pages/Operations/Plan.jsx'))
+const OpsPlanAM = React.lazy(() => import('./pages/Operations/PlanAM.jsx'))
+const OpsPlanPM = React.lazy(() => import('./pages/Operations/PlanPM.jsx'))
 
 const DriverDetailLayout = React.lazy(() => import('./pages/Admin/DriverDetail/DriverDetail.jsx'))
 const DriverProfile = React.lazy(() => import('./pages/Admin/DriverDetail/Profile.jsx'))
@@ -116,7 +118,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
                   <Route path="operations/rota" element={<OpsRota />} />
                   <Route path="operations/vans" element={<OpsVans />} />
                   <Route path="operations/performance" element={<OpsPerformance />} />
-                  <Route path="operations/plan" element={<OpsPlan />} />
+                  <Route path="operations/plan" element={<OpsPlan />}>
+                    <Route index element={<Navigate to="am" replace />} />
+                    <Route path="am" element={<OpsPlanAM />} />
+                    <Route path="pm" element={<OpsPlanPM />} />
+                  </Route>
 
                   {/* Driver detail */}
                   <Route path="admin/drivers/:email" element={<DriverDetailLayout />}>

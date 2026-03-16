@@ -215,6 +215,35 @@ export default function OnboardingPhase2() {
     );
   };
 
+  // ---------- Safety Training ----------
+  const SafetyTrainingEditor = ({ row }) => {
+    const value = /^\d{4}-\d{2}-\d{2}$/.test(row.safetyTraining || '')
+      ? row.safetyTraining
+      : '';
+    const handle = (e) => {
+      updateApplication(row.email, { safetyTraining: e.target.value || '' });
+    };
+    return (
+      <TextField
+        type="date"
+        size="small"
+        value={value}
+        onChange={handle}
+        sx={{
+          ml: -0.5,
+          minWidth: 120,
+          '& .MuiInputBase-root': {
+            height: 28,
+            fontSize: 'inherit',
+            borderRadius: 1.25,
+            px: 0.75,
+          },
+          '& .MuiInputBase-input': { py: 0.25 },
+        }}
+      />
+    );
+  };
+
   // ---------- Contract Signing ----------
   const ContractSigningEditor = ({ row }) => {
     const value = /^\d{4}-\d{2}-\d{2}$/.test(row.contractSigning || '')
@@ -283,6 +312,7 @@ export default function OnboardingPhase2() {
     updateApplication(email, {
       bgc: 'Pending',
       training: null,
+      safetyTraining: null,
       contractSigning: 'Pending',
       dcc: null,
     });
@@ -334,6 +364,7 @@ export default function OnboardingPhase2() {
           if (label === 'Station') return row.station || row.depot || '-';
           if (label === 'Background Check') return <BackgroundCheckEditor row={row} />;
           if (label === 'Training') return <TrainingEditor row={row} />;
+          if (label === 'Safety Training') return <SafetyTrainingEditor row={row} />;
           if (label === 'Contract Signing') return <ContractSigningEditor row={row} />;
           if (label === 'DCC') return <DccEditor row={row} />;
           return undefined;

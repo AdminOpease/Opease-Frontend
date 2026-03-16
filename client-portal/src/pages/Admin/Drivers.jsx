@@ -87,7 +87,7 @@ export default function AdminDrivers() {
     () => [ALL, ...Array.from(new Set(drivers.map((d) => d.depot)))],
     [drivers]
   );
-  const [depot, setDepot] = React.useState(ALL);
+  const [depot, setDepot] = React.useState('DLU2');
   const [depotEl, setDepotEl] = React.useState(null);
   const depotOpen = Boolean(depotEl);
 
