@@ -7,7 +7,7 @@ import {
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 
-const DEPOTS = ['All Depots', 'Heathrow', 'Greenwich', 'Battersea'];
+const DEPOTS = ['All Depots', 'DLU2', 'Heathrow', 'Greenwich', 'Battersea'];
 
 const INITIAL_ROWS = [
   // demo row (time-only)
@@ -45,7 +45,7 @@ function diffHHmmFromTimes(dateStr, startHHMM, endHHMM) {
 }
 
 export default function WorkingHours() {
-  const [depot, setDepot] = React.useState('All Depots');
+  const [depot, setDepot] = React.useState('DLU2');
   const [rows, setRows] = React.useState(INITIAL_ROWS);
   const [uploadOpen, setUploadOpen] = React.useState(false);
   const [uploadFileName, setUploadFileName] = React.useState('');

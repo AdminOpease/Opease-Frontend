@@ -80,6 +80,7 @@ export default function DriverProfile() {
   const [form, setForm] = React.useState({
     firstName: '', lastName: '', phone: '', email: '',
     transporterId: '',
+    onlineTrainingDate: '', safetyTrainingDate: '',
     licenceNumber: '', licenceExpiry: '', licenceCountry: '', dateTestPassed: '',
     idDocumentType: '', idExpiry: '', passportCountry: '',
     rightToWork: '', shareCode: '', niNumber: '',
@@ -109,13 +110,14 @@ export default function DriverProfile() {
         </Grid>
       </Section>
 
-      <Section icon={<LocalShippingIcon />} title="Transporter ID">
+      <Section icon={<LocalShippingIcon />} title="Transporter ID & Training">
         <Grid container spacing={1}>
-          <F label="Transporter ID" value={form.transporterId} onChange={set('transporterId')} md={12} />
+          <F label="Transporter ID" value={form.transporterId} onChange={set('transporterId')} />
+          <F label="Online Training Date" type="date" value={form.onlineTrainingDate} onChange={set('onlineTrainingDate')} />
+          <F label="Safety Training Date" type="date" value={form.safetyTrainingDate} onChange={set('safetyTrainingDate')} />
         </Grid>
       </Section>
 
-      {/* Row 2 */}
       <Section icon={<DirectionsCarIcon />} title="Driver's Licence">
         <Grid container spacing={1}>
           <F label="Licence Number" value={form.licenceNumber} onChange={set('licenceNumber')} />

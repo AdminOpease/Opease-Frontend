@@ -58,7 +58,7 @@ export default function Onboarding() {
 
   // Depot filter (shared across both phases)
   const depotOptions = React.useMemo(() => [ALL, ...depots], [depots]);
-  const [depot, setDepot] = React.useState(ALL);
+  const [depot, setDepot] = React.useState('DLU2');
   const [depotEl, setDepotEl] = React.useState(null);
 
   // Unremoved apps
@@ -96,6 +96,7 @@ export default function Onboarding() {
     'Phone',
     'Background Check',
     'Training',
+    'Safety Training',
     'Contract Signing',
     'DCC',
   ];

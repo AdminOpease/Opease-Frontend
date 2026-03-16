@@ -67,7 +67,7 @@ export default function ExpiringDocs() {
   const { depots, documents, drivers } = useAppStore();
   const depotOptions = [ALL, ...depots];
 
-  const [depot, setDepot] = React.useState(ALL);
+  const [depot, setDepot] = React.useState('DLU2');
   const [docType, setDocType] = React.useState('All');
 
   // Menu anchors
