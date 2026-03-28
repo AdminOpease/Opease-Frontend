@@ -278,9 +278,12 @@ export default function PhaseTable({
 }
 
 function defaultRender(row, label) {
+  const pascal = label.replace(/\s+/g, '');
+  const camel = pascal.charAt(0).toLowerCase() + pascal.slice(1);
   const keys = [
     label,
-    label.replace(/\s+/g, ''),
+    pascal,
+    camel,
     label.replace(/\s+/g, '_'),
     label.replace(/\s+/g, '').toLowerCase(),
     label.replace(/\s+/g, '_').toLowerCase(),

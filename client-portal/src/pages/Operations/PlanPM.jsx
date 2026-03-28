@@ -11,8 +11,8 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import { useOutletContext } from 'react-router-dom';
-import { PM_PLAN_DATA } from '../../data/planDemoData.js';
-import { ROTA_WEEKS, ROTA_DRIVERS, ROTA_SCHEDULE, SHIFT_CODES } from '../../data/rotaDemoData.js';
+import { SHIFT_CODES } from '../../data/rotaDemoData.js';
+import { planPm as planPmApi } from '../../services/api';
 import ShiftChip from '../../components/operations/ShiftChip.jsx';
 
 const ALL = 'All Depots';
@@ -38,16 +38,11 @@ function formatDate(d) {
   return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function findRotaPosition(date) {
+function toISO(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  const iso = `${y}-${m}-${d}`;
-  for (const week of ROTA_WEEKS) {
-    const dayIndex = week.days.indexOf(iso);
-    if (dayIndex !== -1) return { weekNumber: week.weekNumber, dayIndex };
-  }
-  return null;
+  return `${y}-${m}-${d}`;
 }
 
 const menuPaperSx = {
@@ -67,6 +62,25 @@ export default function PlanPM() {
   const [dayOffset, setDayOffset] = React.useState(0);
   const currentDate = addDays(new Date(), dayOffset);
 
+  // Fetch PM plan sections from API
+  const [sections, setSections] = React.useState([]);
+
+  React.useEffect(() => {
+    const dateStr = toISO(currentDate);
+    if (depot === ALL) return;
+    planPmApi.list({ date: dateStr, depot })
+      .then((res) => {
+        const apiSections = (res.data || []).map((s) => ({
+          id: s.id,
+          section: s.title,
+          time: s.time,
+          drivers: (s.drivers || []).map((d) => `${d.first_name} ${d.last_name}`).sort(),
+        }));
+        setSections(apiSections);
+      })
+      .catch((err) => console.error('Failed to fetch PM plan:', err));
+  }, [dayOffset, depot]);
+
   // Route type options (pre-set + user-added)
   const [routeOptions, setRouteOptions] = React.useState(DEFAULT_ROUTE_OPTIONS);
 
@@ -85,56 +99,8 @@ export default function PlanPM() {
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
   const [newOption, setNewOption] = React.useState('');
 
-  // Merge all depots or show selected depot
-  const sections = React.useMemo(() => {
-    if (depot === ALL) {
-      const merged = {};
-      Object.values(PM_PLAN_DATA).forEach((depotSections) => {
-        depotSections.forEach((s) => {
-          const key = s.section;
-          if (!merged[key]) {
-            merged[key] = { section: s.section, time: s.time, drivers: [] };
-          }
-          s.drivers.forEach((d) => {
-            if (!merged[key].drivers.includes(d)) {
-              merged[key].drivers.push(d);
-            }
-          });
-        });
-      });
-      Object.values(merged).forEach((s) => s.drivers.sort());
-      const order = ['Same Day Routes', 'SWA', 'Full Routes', 'Electric Vehicle', 'Ride Along', 'Cycle 2 Route'];
-      return order.map((title) => merged[title]).filter(Boolean);
-    }
-    const depotData = PM_PLAN_DATA[depot];
-    if (!depotData) return [];
-    return depotData.map((s) => ({ ...s, drivers: [...s.drivers].sort() }));
-  }, [depot]);
-
-  // Map current date to rota week/day
-  const rotaPosition = React.useMemo(() => findRotaPosition(currentDate), [currentDate]);
-
-  // Resolve drivers from rota for linked sections
-  const resolvedSections = React.useMemo(() => {
-    return sections.map((s, idx) => {
-      const linkedCode = sectionLinks[idx];
-      if (!linkedCode) return s;
-      if (!rotaPosition) return { ...s, drivers: [], _outOfRange: true, _linked: true };
-      const { weekNumber, dayIndex } = rotaPosition;
-      const matchingDrivers = ROTA_DRIVERS
-        .filter((driver) => {
-          if (depot !== ALL && driver.depot !== depot) return false;
-          if (driver.left === 1) return false;
-          const key = `${driver.id}-${weekNumber}`;
-          const shifts = ROTA_SCHEDULE[key];
-          if (!shifts) return false;
-          return shifts[dayIndex] === linkedCode;
-        })
-        .map((driver) => driver.name)
-        .sort();
-      return { ...s, drivers: matchingDrivers, _linked: true };
-    });
-  }, [sections, sectionLinks, rotaPosition, depot]);
+  // Use sections directly (rota linking simplified for now)
+  const resolvedSections = sections;
 
   // Open dropdown for a section header
   const handleHeaderClick = (e, idx) => {

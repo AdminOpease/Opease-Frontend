@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "application-form",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "application-form", "run", "dev", "--", "--port", "5173", "--host", "127.0.0.1"],
+      "port": 5173
+    },
+    {
+      "name": "client-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "client-portal", "run", "dev", "--", "--port", "5174", "--host", "127.0.0.1"],
+      "port": 5174
+    },
+    {
+      "name": "candidate-portal",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "cd candidate-portal && npx expo start --web --port 8081"],
+      "port": 8081
+    }
+  ]
+}

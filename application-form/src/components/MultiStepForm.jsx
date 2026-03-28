@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { auth as authApi, applications as appApi, stations as stationsApi } from "../services/api";
 
 function Toast({ message, onDone }) {
   useEffect(() => {
@@ -85,16 +86,15 @@ function MultiStepForm() {
   const [stations, setStations] = useState([]);
 
   useEffect(() => {
-    // Load available stations from a public JSON file (to be managed by client-portal later)
-    fetch("/stations.json")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data) => {
-        if (Array.isArray(data)) setStations(data);
-        else if (data && Array.isArray(data.stations)) setStations(data.stations);
+    // Load available stations from backend API
+    stationsApi.list()
+      .then((res) => {
+        const list = (res.data || res || []).map((s) => s.name || s);
+        if (list.length) setStations(list);
+        else setStations(["DLU2", "Heathrow", "Greenwich", "Battersea"]);
       })
       .catch(() => {
-        // Fallback local defaults
-        setStations(["London - Park Royal", "London - Croydon", "Bristol", "Manchester"]);
+        setStations(["DLU2", "Heathrow", "Greenwich", "Battersea"]);
       });
 
     const timer = setTimeout(() => setLoading(false), 4000);
@@ -167,16 +167,17 @@ function MultiStepForm() {
     "image/png",
   ];
 
+  // Track driver ID returned from signup/login
+  const [driverId, setDriverId] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+
   // ---------- Auth Handlers ----------
-  const handleSignUp = (e) => {
+  const handleSignUp = async (e) => {
     e.preventDefault();
-    // Require station selection
     if (!formData.station) {
       setError("Please select your preferred station/location.");
       return;
     }
-
-
     if (!formData.firstName.trim() || !formData.lastName.trim()) {
       return setError("Please enter your first and last name.");
     }
@@ -191,30 +192,65 @@ function MultiStepForm() {
     }
 
     setError("");
-    setStep(2);
-  };
-
-  const handleVerify = (e) => {
-    e.preventDefault();
-    // DEMO ONLY: Replace with backend email verification when API is ready
-    if (formData.code === "123456") {
-      showToast("Email verified!");
-      setStep(4); // jump to application
-    } else {
-      setError("Invalid code.");
+    setSubmitting(true);
+    try {
+      const res = await authApi.signup({
+        email: formData.email,
+        password: formData.password,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: `+44${formData.phone}`,
+        station: formData.station,
+      });
+      setDriverId(res.driverId);
+      setStep(2);
+    } catch (err) {
+      setError(err.message || "Signup failed. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const handleLogin = (e) => {
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSubmitting(true);
+    try {
+      await authApi.verifyEmail({ email: formData.email, code: formData.code });
+      showToast("Email verified!");
+      setStep(4);
+    } catch (err) {
+      setError(err.message || "Invalid code.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
     if (!validateEmail(formData.email) || (formData.password || "").length < 6) {
       return setError("Invalid login details.");
     }
     setError("");
-    setStep(4);
+    setSubmitting(true);
+    try {
+      const res = await authApi.login({
+        email: formData.email,
+        password: formData.password,
+      });
+      localStorage.setItem("opease:token", res.accessToken);
+      if (res.driver) setDriverId(res.driver.id);
+      setStep(4);
+    } catch (err) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ---------- Application Step Validations ----------
+  // Note: File upload validation skipped in dev mode (no S3 configured).
+  // Text/date fields still validate. Files are optional for MVP.
   const validateLicenceStep = () => {
     if (!formData.licenceNumber.trim()) {
       return "Please enter your licence number.";
@@ -234,21 +270,12 @@ function MultiStepForm() {
     if (isFuture(formData.dateTestPassed)) {
       return "Date Test Passed cannot be in the future.";
     }
-    if (!validateFile(formData.licenceFront, { types: ACCEPTED_FILE_TYPES })) {
-      return `Please upload a valid front image/PDF of your licence. ${fileTypeHint}`;
-    }
-    if (!validateFile(formData.licenceBack, { types: ACCEPTED_FILE_TYPES })) {
-      return `Please upload a valid back image/PDF of your licence. ${fileTypeHint}`;
-    }
     return "";
   };
 
   const validateIdentificationStep = () => {
     if (!formData.idDocumentType) {
       return "Please select an ID document type.";
-    }
-    if (!validateFile(formData.idPassport, { types: ACCEPTED_FILE_TYPES })) {
-      return `Please upload your selected ID (image/PDF). ${fileTypeHint}`;
     }
     if (!formData.idExpiry) {
       return "Please select your ID expiry date.";
@@ -265,10 +292,6 @@ function MultiStepForm() {
       if (!/^[A-Z0-9]{9}$/.test(code)) {
         return "Share Code should be 9 characters (letters/numbers).";
       }
-    } else {
-      if (!validateFile(formData.rightToWorkFile, { types: ACCEPTED_FILE_TYPES })) {
-        return `Please upload your Right to Work document (image/PDF). ${fileTypeHint}`;
-      }
     }
     return "";
   };
@@ -276,9 +299,6 @@ function MultiStepForm() {
   const validateNIStep = () => {
     if (!validateNINumber(formData.niNumber)) {
       return "Enter a valid UK National Insurance number (e.g., QQ123456C).";
-    }
-    if (!validateFile(formData.niDocument, { types: ACCEPTED_FILE_TYPES })) {
-      return `Please upload a document that shows your NI number (image/PDF). ${fileTypeHint}`;
     }
     return "";
   };
@@ -293,13 +313,10 @@ function MultiStepForm() {
     if (!postcodeRegex.test(pc)) {
       return "Please enter a valid UK postcode.";
     }
-    if (!validateFile(formData.addressProof, { types: ACCEPTED_FILE_TYPES })) {
-      return `Please upload a valid Proof of Address (image/PDF). ${fileTypeHint}`;
-    }
     return "";
   };
 
-  const handleApplicationSubmit = (e) => {
+  const handleApplicationSubmit = async (e) => {
     e.preventDefault();
 
     const err = validateAddressStep();
@@ -309,8 +326,37 @@ function MultiStepForm() {
     }
 
     setError("");
-    showToast("Application submitted!");
-    setStep(10); // final confirmation
+    setSubmitting(true);
+    try {
+      await appApi.submit({
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: `+44${formData.phone}`,
+        station: formData.station,
+        licenceNumber: formData.licenceNumber,
+        licenceExpiry: formData.licenceExpiry,
+        licenceCountry: formData.licenceCountry,
+        dateTestPassed: formData.dateTestPassed,
+        idDocumentType: formData.idDocumentType,
+        idExpiry: formData.idExpiry,
+        passportCountry: formData.passportCountry,
+        rightToWork: formData.rightToWork,
+        shareCode: formData.shareCode,
+        niNumber: formData.niNumber,
+        addressLine1: formData.addressLine1,
+        addressLine2: formData.addressLine2,
+        town: formData.town,
+        county: formData.county,
+        postcode: formData.postcode,
+      });
+      showToast("Application submitted!");
+      setStep(10);
+    } catch (err) {
+      setError(err.message || "Submission failed. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // --- LOADING SCREEN ---
@@ -831,7 +877,6 @@ function MultiStepForm() {
                   onChange={handleChange}
                   className="hidden"
                   id="licenceFront"
-                  required
                   accept=".pdf,image/jpeg,image/png"
                 />
                 <label htmlFor="licenceFront" className="cursor-pointer">
@@ -856,7 +901,6 @@ function MultiStepForm() {
                   onChange={handleChange}
                   className="hidden"
                   id="licenceBack"
-                  required
                   accept=".pdf,image/jpeg,image/png"
                 />
                 <label htmlFor="licenceBack" className="cursor-pointer">
@@ -976,7 +1020,6 @@ function MultiStepForm() {
                   id="idPassport"
                   onChange={handleChange}
                   className="hidden"
-                  required
                   accept=".pdf,image/jpeg,image/png"
                 />
                 <label htmlFor="idPassport" className="cursor-pointer">
@@ -1132,7 +1175,6 @@ function MultiStepForm() {
                     id="passportFile"
                     onChange={handleChange}
                     className="hidden"
-                    required
                     accept=".pdf,image/jpeg,image/png"
                   />
                   <label htmlFor="passportFile" className="cursor-pointer">
@@ -1158,7 +1200,6 @@ function MultiStepForm() {
                     id="birthCertFile"
                     onChange={handleChange}
                     className="hidden"
-                    required
                     accept=".pdf,image/jpeg,image/png"
                   />
                   <label htmlFor="birthCertFile" className="cursor-pointer">
@@ -1294,7 +1335,6 @@ function MultiStepForm() {
                   id="niDocument"
                   onChange={handleChange}
                   className="hidden"
-                  required
                   accept=".pdf,image/jpeg,image/png"
                 />
                 <label htmlFor="niDocument" className="cursor-pointer">
@@ -1493,7 +1533,6 @@ function MultiStepForm() {
                   id="addressProof"
                   onChange={handleChange}
                   className="hidden"
-                  required
                   accept=".pdf,image/jpeg,image/png"
                 />
                 <label htmlFor="addressProof" className="cursor-pointer">

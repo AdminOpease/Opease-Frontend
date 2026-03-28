@@ -64,14 +64,19 @@ export default function Onboarding() {
   // Unremoved apps
   const base = React.useMemo(() => applications.filter((a) => !a.removedAt), [applications]);
 
-  // Phase logic
-  const phase1Raw = base.filter(
-    (a) => a.bgc === 'Pending' && !a.training && a.contractSigning !== 'Complete' && !a.dcc
-  );
-  const phase2Raw = base.filter(
-    (a) =>
-      !(a.bgc === 'Pending' && !a.training && a.contractSigning !== 'Complete' && !a.dcc)
-  );
+  // Phase logic — Phase 2 if Phase 1 complete OR any Phase 2 field touched
+  const isPhase2 = (a) => {
+    const phase1Done = a.preDCC === 'Complete' && a.dlVerification === 'Pass';
+    const phase2Activity =
+      (a.bgc && a.bgc !== 'Pending') ||
+      a.drivingTestSlots?.length > 0 ||
+      a.drivingTestResult ||
+      a.training ||
+      a.dcc;
+    return phase1Done || phase2Activity;
+  };
+  const phase1Raw = base.filter((a) => !isPhase2(a));
+  const phase2Raw = base.filter((a) => isPhase2(a));
 
   // Apply depot filter to both
   const byDepot = (arr) =>
@@ -87,6 +92,7 @@ export default function Onboarding() {
     'Phone',
     'Pre-DCC',
     'Account ID',
+    'Flex',
     'DL Verification',
   ];
   const colsPhase2 = [
@@ -94,10 +100,11 @@ export default function Onboarding() {
     'Station',
     'Full Name',
     'Phone',
+    'Driving Test + Safety Training',
+    'Test Result',
     'Background Check',
-    'Training',
-    'Safety Training',
-    'Contract Signing',
+    'Online Training',
+    'Training Result',
     'DCC',
   ];
 

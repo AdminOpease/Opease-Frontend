@@ -14,6 +14,7 @@ import {
   Menu,
   MenuItem,
   Popover,
+  CircularProgress,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -22,15 +23,11 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import * as XLSX from 'xlsx';
 import { useAppStore } from '../../state/AppStore.jsx';
 import ShiftChip from '../../components/operations/ShiftChip';
-import {
-  ROTA_WEEKS,
-  ROTA_DRIVERS,
-  ROTA_SCHEDULE,
-  SHIFT_CODES,
-  countWorkDays,
-} from '../../data/rotaDemoData';
+import { SHIFT_CODES, countWorkDays } from '../../data/rotaDemoData';
+import { rota as rotaApi } from '../../services/api';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_COLS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 // ── Shared cell styling ─────────────────────────────────────────────
 const cellSx = {
@@ -69,10 +66,25 @@ function formatShortDate(iso) {
 }
 
 function formatWeekRange(week) {
+  if (!week) return '';
   const s = new Date(week.startDate + 'T00:00:00');
   const e = new Date(week.endDate + 'T00:00:00');
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   return `${months[s.getMonth()]} ${s.getDate()} – ${months[e.getMonth()]} ${e.getDate()}`;
+}
+
+function buildDaysFromWeek(startDate) {
+  const days = [];
+  const s = new Date(startDate + 'T00:00:00');
+  for (let d = 0; d < 7; d++) {
+    const dt = new Date(s);
+    dt.setDate(s.getDate() + d);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    days.push(`${y}-${m}-${day}`);
+  }
+  return days;
 }
 
 // ── Depot pill button (matches Drivers / ExpiringDocs) ───────────
@@ -127,8 +139,12 @@ export default function Rota() {
   const [depot, setDepot] = React.useState('DLU2');
   const [depotEl, setDepotEl] = React.useState(null);
 
+  // Data from API
+  const [weeks, setWeeks] = React.useState([]);
   const [weekIdx, setWeekIdx] = React.useState(0);
-  const [schedule, setSchedule] = React.useState(() => ({ ...ROTA_SCHEDULE }));
+  const [scheduleRows, setScheduleRows] = React.useState([]);
+  const [loadingWeeks, setLoadingWeeks] = React.useState(true);
+  const [loadingSchedule, setLoadingSchedule] = React.useState(false);
 
   // Column filters
   const [nameFilter, setNameFilter] = React.useState('');
@@ -143,35 +159,89 @@ export default function Rota() {
   const [editValue, setEditValue] = React.useState('');
   const editRef = React.useRef(null);
 
-  const week = ROTA_WEEKS[weekIdx];
+  // ── Fetch weeks on mount ──
+  React.useEffect(() => {
+    rotaApi.weeks().then((res) => {
+      const apiWeeks = (res.data || []).map((w) => ({
+        id: w.id,
+        weekNumber: w.week_number,
+        startDate: w.start_date,
+        endDate: w.end_date,
+        days: buildDaysFromWeek(w.start_date),
+      }));
+      setWeeks(apiWeeks);
+      setLoadingWeeks(false);
+    }).catch((err) => {
+      console.error('Failed to fetch weeks:', err);
+      setLoadingWeeks(false);
+    });
+  }, []);
 
-  const filteredDrivers = ROTA_DRIVERS.filter((driver) => {
-    // Depot filter
-    if (depot !== ALL && driver.depot !== depot) return false;
-    // Name filter
+  const week = weeks[weekIdx];
+
+  // ── Fetch schedule when week or depot changes ──
+  React.useEffect(() => {
+    if (!week) return;
+    setLoadingSchedule(true);
+    const params = { weekId: week.id };
+    if (depot !== ALL) params.depot = depot;
+    rotaApi.schedule(params).then((res) => {
+      setScheduleRows(res.data || []);
+      setLoadingSchedule(false);
+    }).catch((err) => {
+      console.error('Failed to fetch schedule:', err);
+      setLoadingSchedule(false);
+    });
+  }, [week?.id, depot]);
+
+  // ── Transform schedule into drivers + schedule map ──
+  const drivers = React.useMemo(() => {
+    const seen = new Map();
+    for (const row of scheduleRows) {
+      if (!seen.has(row.driver_id)) {
+        seen.set(row.driver_id, {
+          id: row.driver_id,
+          name: `${row.first_name} ${row.last_name}`,
+          amazonId: row.amazon_id || '',
+          depot: row.depot,
+        });
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [scheduleRows]);
+
+  // scheduleMap: driverId -> { id, shifts: [sun, mon, ...] }
+  const scheduleMap = React.useMemo(() => {
+    const map = {};
+    for (const row of scheduleRows) {
+      map[row.driver_id] = {
+        id: row.id,
+        shifts: DAY_COLS.map((d) => row[d] || ''),
+      };
+    }
+    return map;
+  }, [scheduleRows]);
+
+  const filteredDrivers = drivers.filter((driver) => {
     if (nameFilter && !driver.name.toLowerCase().includes(nameFilter.toLowerCase())) return false;
-    // Transporter ID filter
     if (idFilter && !driver.amazonId.toLowerCase().includes(idFilter.toLowerCase())) return false;
-    // Day column filters — show driver only if their shift matches the filter for each filtered day
-    const key = `${driver.id}-${week.weekNumber}`;
-    const shifts = schedule[key] || Array(7).fill('');
+    const entry = scheduleMap[driver.id];
+    const shifts = entry ? entry.shifts : Array(7).fill('');
     for (let d = 0; d < 7; d++) {
       if (dayFilters[d] && shifts[d].toUpperCase() !== dayFilters[d].toUpperCase()) return false;
     }
     return true;
-  }).sort((a, b) => a.name.localeCompare(b.name));
+  });
 
-  // ── DA Capacity: drivers filtered by depot only (ignore column filters) ──
-  const depotDrivers = ROTA_DRIVERS.filter((d) => depot === ALL || d.depot === depot);
-
+  // ── DA Capacity ──
   const capacity = React.useMemo(() => {
     const TRACKED = new Set(['SD', 'SWA', 'NL1', 'NL2', 'NL3', 'NL4', 'RA', 'SB']);
     const WORK_SET = new Set(['W', 'Office', 'OfficeLD', 'SD', 'Fleet', 'SB', 'DR', 'C', 'C2', 'NL3', '1P', 'SWA', 'DHW', 'MT']);
     const days = Array.from({ length: 7 }, () => ({ working: 0, rest: 0, sd: 0, swa: 0, nl1: 0, nl2: 0, nl3: 0, nl4: 0, ra: 0, sb: 0 }));
 
-    depotDrivers.forEach((driver) => {
-      const key = `${driver.id}-${week.weekNumber}`;
-      const shifts = schedule[key] || Array(7).fill('');
+    for (const driver of drivers) {
+      const entry = scheduleMap[driver.id];
+      const shifts = entry ? entry.shifts : Array(7).fill('');
       shifts.forEach((code, d) => {
         if (code === 'SD') days[d].sd += 1;
         else if (code === 'SWA') days[d].swa += 1;
@@ -182,34 +252,43 @@ export default function Rota() {
         else if (code === 'RA') days[d].ra += 1;
         else if (code === 'SB') days[d].sb += 1;
         else if (code === 'R' || code === '') days[d].rest += 1;
-        // Everything else goes into "working" (W, Office, Fleet, MT, etc.)
         if (WORK_SET.has(code) && !TRACKED.has(code)) days[d].working += 1;
       });
-    });
+    }
     return days;
-  }, [depotDrivers, week, schedule]);
+  }, [drivers, scheduleMap]);
 
-  const handleCellClick = (driverId, weekNumber, dayIndex, currentCode) => {
-    setEditTarget({ driverId, weekNumber, dayIndex });
+  const handleCellClick = (driverId, dayIndex, currentCode) => {
+    setEditTarget({ driverId, dayIndex });
     setEditValue(currentCode || '');
-    // Focus the input after render
     setTimeout(() => editRef.current?.focus(), 0);
   };
 
-  const handleEditCommit = () => {
+  const handleEditCommit = async () => {
     if (!editTarget) return;
-    const { driverId, weekNumber, dayIndex } = editTarget;
-    const key = `${driverId}-${weekNumber}`;
+    const { driverId, dayIndex } = editTarget;
+    const entry = scheduleMap[driverId];
+    if (!entry) return;
+
     const trimmed = editValue.trim();
-    // Accept valid shift codes or empty (clear)
     const code = SHIFT_CODES[trimmed] ? trimmed : (trimmed === '' ? '' : trimmed.toUpperCase());
-    setSchedule((prev) => {
-      const shifts = [...(prev[key] || Array(7).fill(''))];
-      shifts[dayIndex] = SHIFT_CODES[code] ? code : '';
-      return { ...prev, [key]: shifts };
-    });
+    const dayCol = DAY_COLS[dayIndex];
+
+    // Optimistic update
+    setScheduleRows((prev) =>
+      prev.map((row) =>
+        row.id === entry.id ? { ...row, [dayCol]: SHIFT_CODES[code] ? code : '' } : row
+      )
+    );
     setEditTarget(null);
     setEditValue('');
+
+    // Persist to API
+    try {
+      await rotaApi.updateShift(entry.id, { [dayCol]: code || null });
+    } catch (err) {
+      console.error('Failed to save shift:', err);
+    }
   };
 
   const handleEditKeyDown = (e) => {
@@ -222,9 +301,10 @@ export default function Rota() {
   };
 
   const handleExportExcel = () => {
+    if (!week) return;
     const rows = filteredDrivers.map((driver, idx) => {
-      const key = `${driver.id}-${week.weekNumber}`;
-      const shifts = schedule[key] || Array(7).fill('');
+      const entry = scheduleMap[driver.id];
+      const shifts = entry ? entry.shifts : Array(7).fill('');
       const row = {
         '#': idx + 1,
         Name: driver.name,
@@ -239,12 +319,18 @@ export default function Rota() {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    const sheetName = `Week ${week.weekNumber}`;
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
-
+    XLSX.utils.book_append_sheet(wb, ws, `Week ${week.weekNumber}`);
     const depotLabel = depot === ALL ? 'All' : depot;
     XLSX.writeFile(wb, `Rota_Week${week.weekNumber}_${depotLabel}.xlsx`);
   };
+
+  if (loadingWeeks) {
+    return <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}><CircularProgress /></Box>;
+  }
+
+  if (!week) {
+    return <Typography sx={{ py: 4, textAlign: 'center', color: 'text.secondary' }}>No weeks found.</Typography>;
+  }
 
   return (
     <Box>
@@ -295,7 +381,7 @@ export default function Rota() {
             DA Capacity — Week {week.weekNumber}
           </Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
-            {depot === ALL ? 'All Depots' : depot} · {depotDrivers.length} driver{depotDrivers.length !== 1 ? 's' : ''}
+            {depot === ALL ? 'All Depots' : depot} · {drivers.length} driver{drivers.length !== 1 ? 's' : ''}
           </Typography>
 
           <Table size="small" sx={{ '& th, & td': { px: 1, py: 0.6, fontSize: 12 } }}>
@@ -321,36 +407,16 @@ export default function Rota() {
                   <TableCell sx={{ fontWeight: 600 }}>
                     {DAY_LABELS[i]} {formatShortDate(day)}
                   </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 700, color: '#2E7D32' }}>
-                    {capacity[i].working}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00695C' }}>
-                    {capacity[i].sd}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#AD1457' }}>
-                    {capacity[i].swa}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#0D47A1' }}>
-                    {capacity[i].nl1}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#1565C0' }}>
-                    {capacity[i].nl2}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00838F' }}>
-                    {capacity[i].nl3}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00695C' }}>
-                    {capacity[i].nl4}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#6A1B9A' }}>
-                    {capacity[i].ra}
-                  </TableCell>
-                  <TableCell align="center" sx={{ fontWeight: 600, color: '#FF6F00' }}>
-                    {capacity[i].sb}
-                  </TableCell>
-                  <TableCell align="center" sx={{ color: '#616161' }}>
-                    {capacity[i].rest}
-                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 700, color: '#2E7D32' }}>{capacity[i].working}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00695C' }}>{capacity[i].sd}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#AD1457' }}>{capacity[i].swa}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#0D47A1' }}>{capacity[i].nl1}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#1565C0' }}>{capacity[i].nl2}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00838F' }}>{capacity[i].nl3}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#00695C' }}>{capacity[i].nl4}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#6A1B9A' }}>{capacity[i].ra}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, color: '#FF6F00' }}>{capacity[i].sb}</TableCell>
+                  <TableCell align="center" sx={{ color: '#616161' }}>{capacity[i].rest}</TableCell>
                   <TableCell align="center" sx={{ fontWeight: 700 }}>
                     {capacity[i].working + capacity[i].sd + capacity[i].swa + capacity[i].nl1 + capacity[i].nl2 + capacity[i].nl3 + capacity[i].nl4}
                   </TableCell>
@@ -362,31 +428,13 @@ export default function Rota() {
 
         {/* Week navigator */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <IconButton
-            size="small"
-            disabled={weekIdx === 0}
-            onClick={() => setWeekIdx((i) => i - 1)}
-          >
+          <IconButton size="small" disabled={weekIdx === 0} onClick={() => setWeekIdx((i) => i - 1)}>
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
-
-          <Typography
-            sx={{
-              fontSize: 13,
-              fontWeight: 600,
-              minWidth: 180,
-              textAlign: 'center',
-              userSelect: 'none',
-            }}
-          >
+          <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 180, textAlign: 'center', userSelect: 'none' }}>
             Week {week.weekNumber} ({formatWeekRange(week)})
           </Typography>
-
-          <IconButton
-            size="small"
-            disabled={weekIdx === ROTA_WEEKS.length - 1}
-            onClick={() => setWeekIdx((i) => i + 1)}
-          >
+          <IconButton size="small" disabled={weekIdx === weeks.length - 1} onClick={() => setWeekIdx((i) => i + 1)}>
             <ChevronRightIcon fontSize="small" />
           </IconButton>
         </Box>
@@ -397,9 +445,7 @@ export default function Rota() {
             <FileDownloadIcon fontSize="small" />
           </IconButton>
           <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={pillBtnSx}>
-            <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>
-              {depot}
-            </Typography>
+            <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>{depot}</Typography>
             <ExpandMoreIcon fontSize="small" />
           </IconButton>
           <Menu
@@ -412,9 +458,7 @@ export default function Rota() {
             MenuListProps={{ dense: true, sx: menuListSx }}
           >
             {depotOptions.map((d) => (
-              <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>
-                {d}
-              </MenuItem>
+              <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>{d}</MenuItem>
             ))}
           </Menu>
         </Box>
@@ -422,154 +466,111 @@ export default function Rota() {
 
       {/* ── Schedule table ─────────────────────────────────────── */}
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ overflowX: 'auto' }}>
-          <Table size="small" sx={{ minWidth: 800 }}>
-            <TableHead>
-              <TableRow sx={{ bgcolor: '#F5F5F5' }}>
-                <TableCell sx={{ ...headCellSx, width: 36, ...stickyHeadSx(0) }}>#</TableCell>
-                <TableCell sx={{ ...headCellSx, minWidth: 130, ...stickyHeadSx(36) }}>Name</TableCell>
-                <TableCell sx={{ ...headCellSx, minWidth: 90, ...stickyHeadSx(166) }}>Transporter ID</TableCell>
-                {week.days.map((day, i) => (
-                  <TableCell key={day} align="center" sx={{ ...headCellSx, minWidth: 60 }}>
-                    {DAY_LABELS[i]}
-                    <br />
-                    <span style={{ fontWeight: 400, fontSize: 10 }}>{formatShortDate(day)}</span>
+        {loadingSchedule ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}><CircularProgress size={28} /></Box>
+        ) : (
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table size="small" sx={{ minWidth: 800 }}>
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#F5F5F5' }}>
+                  <TableCell sx={{ ...headCellSx, width: 36, ...stickyHeadSx(0) }}>#</TableCell>
+                  <TableCell sx={{ ...headCellSx, minWidth: 130, ...stickyHeadSx(36) }}>Name</TableCell>
+                  <TableCell sx={{ ...headCellSx, minWidth: 90, ...stickyHeadSx(166) }}>Transporter ID</TableCell>
+                  {week.days.map((day, i) => (
+                    <TableCell key={day} align="center" sx={{ ...headCellSx, minWidth: 60 }}>
+                      {DAY_LABELS[i]}<br />
+                      <span style={{ fontWeight: 400, fontSize: 10 }}>{formatShortDate(day)}</span>
+                    </TableCell>
+                  ))}
+                  <TableCell align="center" sx={{ ...headCellSx, minWidth: 44 }}>Total</TableCell>
+                </TableRow>
+
+                {/* ── Filter row ──────────────────────────────────── */}
+                <TableRow sx={{ bgcolor: '#FAFAFA' }}>
+                  <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(0), bgcolor: '#FAFAFA' }} />
+                  <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(36), bgcolor: '#FAFAFA' }}>
+                    <input value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} placeholder="Filter..." style={filterInputSx} />
                   </TableCell>
-                ))}
-                <TableCell align="center" sx={{ ...headCellSx, minWidth: 44 }}>
-                  Total
-                </TableCell>
-              </TableRow>
-
-              {/* ── Filter row ──────────────────────────────────── */}
-              <TableRow sx={{ bgcolor: '#FAFAFA' }}>
-                <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(0), bgcolor: '#FAFAFA' }} />
-                <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(36), bgcolor: '#FAFAFA' }}>
-                  <input
-                    value={nameFilter}
-                    onChange={(e) => setNameFilter(e.target.value)}
-                    placeholder="Filter..."
-                    style={filterInputSx}
-                  />
-                </TableCell>
-                <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(166), bgcolor: '#FAFAFA' }}>
-                  <input
-                    value={idFilter}
-                    onChange={(e) => setIdFilter(e.target.value)}
-                    placeholder="Filter..."
-                    style={filterInputSx}
-                  />
-                </TableCell>
-                {week.days.map((day, i) => (
-                  <TableCell key={day} align="center" sx={{ ...cellSx, p: 0.5 }}>
-                    <input
-                      value={dayFilters[i]}
-                      onChange={(e) => {
-                        const next = [...dayFilters];
-                        next[i] = e.target.value.toUpperCase();
-                        setDayFilters(next);
-                      }}
-                      placeholder="—"
-                      style={{ ...filterInputSx, width: 36 }}
-                    />
+                  <TableCell sx={{ ...cellSx, p: 0.5, ...stickyHeadSx(166), bgcolor: '#FAFAFA' }}>
+                    <input value={idFilter} onChange={(e) => setIdFilter(e.target.value)} placeholder="Filter..." style={filterInputSx} />
                   </TableCell>
-                ))}
-                <TableCell sx={{ ...cellSx, p: 0.5 }} />
-              </TableRow>
-            </TableHead>
-
-            <TableBody>
-              {filteredDrivers.map((driver, idx) => {
-                const key = `${driver.id}-${week.weekNumber}`;
-                const shifts = schedule[key] || Array(7).fill('');
-                const total = countWorkDays(shifts);
-
-                return (
-                  <TableRow
-                    key={driver.id}
-                    hover
-                    sx={{ '&:nth-of-type(even)': { bgcolor: '#FAFAFA' } }}
-                  >
-                    <TableCell
-                      sx={{
-                        ...cellSx,
-                        fontWeight: 600,
-                        textAlign: 'center',
-                        ...stickyCellSx(0, 1),
-                      }}
-                    >
-                      {idx + 1}
+                  {week.days.map((day, i) => (
+                    <TableCell key={day} align="center" sx={{ ...cellSx, p: 0.5 }}>
+                      <input
+                        value={dayFilters[i]}
+                        onChange={(e) => { const next = [...dayFilters]; next[i] = e.target.value.toUpperCase(); setDayFilters(next); }}
+                        placeholder="—"
+                        style={{ ...filterInputSx, width: 36 }}
+                      />
                     </TableCell>
-                    <TableCell sx={{ ...cellSx, fontWeight: 600, ...stickyCellSx(36) }}>
-                      {driver.name}
-                    </TableCell>
-                    <TableCell sx={{ ...cellSx, fontSize: 10, color: 'text.secondary', ...stickyCellSx(166) }}>
-                      {driver.amazonId}
-                    </TableCell>
+                  ))}
+                  <TableCell sx={{ ...cellSx, p: 0.5 }} />
+                </TableRow>
+              </TableHead>
 
-                    {shifts.map((code, d) => {
-                      const isEditing =
-                        editTarget?.driverId === driver.id &&
-                        editTarget?.weekNumber === week.weekNumber &&
-                        editTarget?.dayIndex === d;
+              <TableBody>
+                {filteredDrivers.map((driver, idx) => {
+                  const entry = scheduleMap[driver.id];
+                  const shifts = entry ? entry.shifts : Array(7).fill('');
+                  const total = countWorkDays(shifts);
 
-                      return (
-                        <TableCell
-                          key={d}
-                          align="center"
-                          sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25 }}
-                          onClick={() => !isEditing && handleCellClick(driver.id, week.weekNumber, d, code)}
-                        >
-                          {isEditing ? (
-                            <ClickAwayListener onClickAway={handleEditCommit}>
-                              <input
-                                ref={editRef}
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value.toUpperCase())}
-                                onKeyDown={handleEditKeyDown}
-                                style={{
-                                  width: 40,
-                                  height: 22,
-                                  border: '1.5px solid #2E4C1E',
-                                  borderRadius: 4,
-                                  textAlign: 'center',
-                                  fontSize: 11,
-                                  fontWeight: 600,
-                                  outline: 'none',
-                                  padding: 0,
-                                  fontFamily: 'inherit',
-                                }}
-                              />
-                            </ClickAwayListener>
-                          ) : code ? (
-                            <ShiftChip code={code} />
-                          ) : (
-                            <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
-                          )}
-                        </TableCell>
-                      );
-                    })}
+                  return (
+                    <TableRow key={driver.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#FAFAFA' } }}>
+                      <TableCell sx={{ ...cellSx, fontWeight: 600, textAlign: 'center', ...stickyCellSx(0, 1) }}>
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell sx={{ ...cellSx, fontWeight: 600, ...stickyCellSx(36) }}>{driver.name}</TableCell>
+                      <TableCell sx={{ ...cellSx, fontSize: 10, color: 'text.secondary', ...stickyCellSx(166) }}>
+                        {driver.amazonId}
+                      </TableCell>
 
-                    <TableCell
-                      align="center"
-                      sx={{ ...cellSx, fontWeight: 700, fontSize: 12 }}
-                    >
-                      {total}
+                      {shifts.map((code, d) => {
+                        const isEditing = editTarget?.driverId === driver.id && editTarget?.dayIndex === d;
+                        return (
+                          <TableCell
+                            key={d}
+                            align="center"
+                            sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25 }}
+                            onClick={() => !isEditing && handleCellClick(driver.id, d, code)}
+                          >
+                            {isEditing ? (
+                              <ClickAwayListener onClickAway={handleEditCommit}>
+                                <input
+                                  ref={editRef}
+                                  value={editValue}
+                                  onChange={(e) => setEditValue(e.target.value.toUpperCase())}
+                                  onKeyDown={handleEditKeyDown}
+                                  style={{
+                                    width: 40, height: 22, border: '1.5px solid #2E4C1E', borderRadius: 4,
+                                    textAlign: 'center', fontSize: 11, fontWeight: 600, outline: 'none', padding: 0, fontFamily: 'inherit',
+                                  }}
+                                />
+                              </ClickAwayListener>
+                            ) : code ? (
+                              <ShiftChip code={code} />
+                            ) : (
+                              <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
+                            )}
+                          </TableCell>
+                        );
+                      })}
+
+                      <TableCell align="center" sx={{ ...cellSx, fontWeight: 700, fontSize: 12 }}>{total}</TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {filteredDrivers.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={11} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: 13 }}>
+                      No drivers match the selected filter.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-
-              {filteredDrivers.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={11} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: 13 }}>
-                    No drivers match the selected filter.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Box>
+                )}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
       </Paper>
 
       {/* ── Legend ──────────────────────────────────────────────── */}
@@ -578,7 +579,6 @@ export default function Rota() {
           <ShiftChip key={code} code={code} />
         ))}
       </Box>
-
     </Box>
   );
 }

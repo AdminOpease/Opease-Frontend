@@ -1,8 +1,11 @@
 // src/pages/Admin/DriverDetail/Profile.jsx
 import * as React from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Box, Typography, Grid, TextField, Paper, Divider,
 } from '@mui/material';
+import { drivers as driversApi } from '../../../services/api';
+import { useAppStore } from '../../../state/AppStore';
 import PersonIcon from '@mui/icons-material/Person';
 import BadgeIcon from '@mui/icons-material/Badge';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
@@ -76,7 +79,21 @@ function F({ label, value, onChange, onBlur, error, helperText, type, disabled, 
   );
 }
 
+/** Convert a Unix-ms timestamp or ISO string to yyyy-mm-dd for date inputs */
+function toDateInput(val) {
+  if (!val) return '';
+  const n = typeof val === 'string' ? Number(val) : val;
+  if (typeof n === 'number' && !isNaN(n) && n > 1e9) {
+    return new Date(n).toISOString().slice(0, 10);
+  }
+  if (typeof val === 'string' && val.match(/^\d{4}-\d{2}/)) return val.slice(0, 10);
+  return String(val);
+}
+
 export default function DriverProfile() {
+  const { email } = useParams();
+  const { drivers } = useAppStore();
+
   const [form, setForm] = React.useState({
     firstName: '', lastName: '', phone: '', email: '',
     transporterId: '',
@@ -88,6 +105,51 @@ export default function DriverProfile() {
     bankName: '', sortCode: '', accountNumber: '', taxReference: '', vatNumber: '',
     addressLine1: '', addressLine2: '', town: '', county: '', postcode: '',
   });
+
+  // Load full driver profile from API
+  React.useEffect(() => {
+    const decodedEmail = decodeURIComponent(email || '');
+    const driver = drivers.find((d) => d.email === decodedEmail);
+    if (!driver?.id) return;
+
+    driversApi.getById(driver.id).then((res) => {
+      const d = res.driver;
+      if (!d) return;
+      setForm({
+        firstName: d.first_name || '',
+        lastName: d.last_name || '',
+        phone: d.phone || '',
+        email: d.email || '',
+        transporterId: d.amazon_id || '',
+        onlineTrainingDate: toDateInput(d.online_training_date),
+        safetyTrainingDate: toDateInput(d.safety_training_date),
+        licenceNumber: d.licence_number || '',
+        licenceExpiry: toDateInput(d.licence_expiry),
+        licenceCountry: d.licence_country || '',
+        dateTestPassed: toDateInput(d.date_test_passed),
+        idDocumentType: d.id_document_type || '',
+        idExpiry: toDateInput(d.id_expiry),
+        passportCountry: d.passport_country || '',
+        rightToWork: d.right_to_work || '',
+        shareCode: d.share_code || '',
+        niNumber: d.ni_number || '',
+        emergencyName: d.emergency_name || '',
+        emergencyRelationship: d.emergency_relationship || '',
+        emergencyPhone: d.emergency_phone || '',
+        emergencyEmail: d.emergency_email || '',
+        bankName: d.bank_name || '',
+        sortCode: d.sort_code || '',
+        accountNumber: d.account_number || '',
+        taxReference: d.tax_reference || '',
+        vatNumber: d.vat_number || '',
+        addressLine1: d.address_line1 || '',
+        addressLine2: d.address_line2 || '',
+        town: d.town || '',
+        county: d.county || '',
+        postcode: d.postcode || '',
+      });
+    }).catch((err) => console.error('Failed to load driver profile:', err));
+  }, [email, drivers]);
 
   const [touched, setTouched] = React.useState({});
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -110,9 +172,9 @@ export default function DriverProfile() {
         </Grid>
       </Section>
 
-      <Section icon={<LocalShippingIcon />} title="Transporter ID & Training">
+      <Section icon={<LocalShippingIcon />} title="Account ID & Training">
         <Grid container spacing={1}>
-          <F label="Transporter ID" value={form.transporterId} onChange={set('transporterId')} />
+          <F label="Account ID" value={form.transporterId} onChange={set('transporterId')} />
           <F label="Online Training Date" type="date" value={form.onlineTrainingDate} onChange={set('onlineTrainingDate')} />
           <F label="Safety Training Date" type="date" value={form.safetyTrainingDate} onChange={set('safetyTrainingDate')} />
         </Grid>

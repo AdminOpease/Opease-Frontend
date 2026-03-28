@@ -14,8 +14,8 @@ import LinkIcon from '@mui/icons-material/Link';
 import LinkOffIcon from '@mui/icons-material/LinkOff';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import { useOutletContext } from 'react-router-dom';
-import { AM_PLAN_DATA, AM_ROUTE_GROUPS } from '../../data/planDemoData.js';
-import { ROTA_WEEKS, ROTA_DRIVERS, ROTA_SCHEDULE, SHIFT_CODES } from '../../data/rotaDemoData.js';
+import { SHIFT_CODES } from '../../data/rotaDemoData.js';
+import { planAm as planAmApi, rota as rotaApi } from '../../services/api';
 import ShiftChip from '../../components/operations/ShiftChip.jsx';
 import * as XLSX from 'xlsx';
 
@@ -40,16 +40,11 @@ function formatDate(d) {
   return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-function findRotaPosition(date) {
+function toISO(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
-  const iso = `${y}-${m}-${d}`;
-  for (const week of ROTA_WEEKS) {
-    const dayIndex = week.days.indexOf(iso);
-    if (dayIndex !== -1) return { weekNumber: week.weekNumber, dayIndex };
-  }
-  return null;
+  return `${y}-${m}-${d}`;
 }
 
 const menuPaperSx = {
@@ -133,9 +128,43 @@ export default function PlanAM() {
   const [dayOffset, setDayOffset] = React.useState(0);
   const currentDate = addDays(new Date(), dayOffset);
 
+  // Fetch AM plan groups from API
+  const [groups, setGroups] = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    const dateStr = toISO(currentDate);
+    if (depot === ALL) return;
+    setLoading(true);
+    planAmApi.list({ date: dateStr, depot })
+      .then((res) => {
+        const apiGroups = (res.data || []).map((g) => ({
+          id: g.id,
+          group: g.title,
+          time: g.time,
+          color: g.color,
+          bg_color: g.bg_color,
+          linked_shift_code: g.linked_shift_code,
+          rows: (g.rows || []).map((r) => ({
+            id: r.id,
+            driver: `${r.first_name} ${r.last_name}`,
+            tid: r.amazon_id || '',
+            van: r.van || '',
+            route: r.route || '',
+            bay: r.bay || '',
+            atlas: r.atlas || '',
+          })),
+        }));
+        setGroups(apiGroups);
+      })
+      .catch((err) => console.error('Failed to fetch AM plan:', err))
+      .finally(() => setLoading(false));
+  }, [dayOffset, depot]);
+
   // Route group header options
-  const defaultOptions = AM_ROUTE_GROUPS.map((g) => `${g.title} - ${g.time}`);
-  const [routeOptions, setRouteOptions] = React.useState(defaultOptions);
+  const defaultOptions = groups.map((g) => `${g.group} - ${g.time}`);
+  const [routeOptions, setRouteOptions] = React.useState([]);
+  React.useEffect(() => { setRouteOptions(groups.map((g) => `${g.group} - ${g.time}`)); }, [groups]);
   const [menuAnchor, setMenuAnchor] = React.useState(null);
   const [menuIdx, setMenuIdx] = React.useState(null);
   const [headerOverrides, setHeaderOverrides] = React.useState({});
@@ -152,63 +181,8 @@ export default function PlanAM() {
   const [snackbar, setSnackbar] = React.useState({ open: false, message: '', severity: 'success' });
   const fileInputRef = React.useRef(null);
 
-  // Build groups from data
-  const groups = React.useMemo(() => {
-    if (depot === ALL) {
-      const merged = {};
-      Object.values(AM_PLAN_DATA).forEach((depotGroups) => {
-        depotGroups.forEach((g) => {
-          const key = g.group;
-          if (!merged[key]) {
-            merged[key] = { group: g.group, time: g.time, rows: [] };
-          }
-          g.rows.forEach((r) => {
-            if (!merged[key].rows.find((x) => x.tid === r.tid && x.route === r.route)) {
-              merged[key].rows.push({ ...r });
-            }
-          });
-        });
-      });
-      Object.values(merged).forEach((g) => g.rows.sort((a, b) => a.driver.localeCompare(b.driver)));
-      const order = AM_ROUTE_GROUPS.map((g) => g.title);
-      return order.map((title) => merged[title]).filter(Boolean);
-    }
-    const depotData = AM_PLAN_DATA[depot];
-    if (!depotData) return [];
-    return depotData.map((g) => ({ ...g, rows: [...g.rows].map((r) => ({ ...r })).sort((a, b) => a.driver.localeCompare(b.driver)) }));
-  }, [depot]);
-
-  // Map current date to rota
-  const rotaPosition = React.useMemo(() => findRotaPosition(currentDate), [currentDate]);
-
-  // Resolve rota-linked groups
-  const resolvedGroups = React.useMemo(() => {
-    return groups.map((g, idx) => {
-      const linkedCode = sectionLinks[idx];
-      if (!linkedCode) return g;
-      if (!rotaPosition) return { ...g, rows: [], _outOfRange: true, _linked: true };
-      const { weekNumber, dayIndex } = rotaPosition;
-      const matchingRows = ROTA_DRIVERS
-        .filter((driver) => {
-          if (depot !== ALL && driver.depot !== depot) return false;
-          if (driver.left === 1) return false;
-          const key = `${driver.id}-${weekNumber}`;
-          const shifts = ROTA_SCHEDULE[key];
-          if (!shifts) return false;
-          return shifts[dayIndex] === linkedCode;
-        })
-        .map((driver) => ({
-          driver: driver.name,
-          tid: driver.amazonId,
-          van: '',
-          route: '',
-          bay: '',
-          atlas: '',
-        }))
-        .sort((a, b) => a.driver.localeCompare(b.driver));
-      return { ...g, rows: matchingRows, _linked: true };
-    });
-  }, [groups, sectionLinks, rotaPosition, depot]);
+  // Use groups directly (rota linking simplified for now)
+  const resolvedGroups = groups;
 
   // Get cell value with edits overlay
   const getCellValue = (gIdx, rIdx, key, original) => {
@@ -218,6 +192,11 @@ export default function PlanAM() {
 
   const handleCellSave = (gIdx, rIdx, key, val) => {
     setCellEdits((prev) => ({ ...prev, [`${gIdx}-${rIdx}-${key}`]: val }));
+    // Persist to API
+    const row = resolvedGroups[gIdx]?.rows?.[rIdx];
+    if (row?.id) {
+      planAmApi.updateRow(row.id, { [key]: val }).catch((err) => console.error('Failed to save cell:', err));
+    }
   };
 
   // Excel upload handler
@@ -339,7 +318,8 @@ export default function PlanAM() {
   };
 
   const getGroupStyle = (groupTitle) => {
-    return AM_ROUTE_GROUPS.find((g) => g.title === groupTitle) || { color: '#424242', bg: '#FAFAFA' };
+    const g = groups.find((g) => g.group === groupTitle);
+    return g ? { color: g.color || '#424242', bg: g.bg_color || '#FAFAFA' } : { color: '#424242', bg: '#FAFAFA' };
   };
 
   return (
