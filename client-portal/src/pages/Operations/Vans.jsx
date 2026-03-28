@@ -36,7 +36,8 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import * as XLSX from 'xlsx';
 import { useAppStore } from '../../state/AppStore.jsx';
 import { ROTA_WEEKS, WORK_CODES } from '../../data/rotaDemoData';
-import { VAN_DRIVERS, VAN_SCHEDULE, VAN_FLEET, VAN_DRIVER_SHIFTS } from '../../data/vansDemoData';
+import { VAN_DRIVERS, VAN_SCHEDULE, VAN_DRIVER_SHIFTS } from '../../data/vansDemoData';
+import { vans as vansApi } from '../../services/api';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -152,8 +153,26 @@ export default function Vans() {
   const [vanSchedule, setVanSchedule] = React.useState(() => ({ ...VAN_SCHEDULE }));
 
   // ── Live fleet state ──────────────────────────────────────────────
-  const [fleet, setFleet] = React.useState(() => VAN_FLEET.map((v, i) => ({ ...v, id: i + 1, doNotUse: false, reason: '', station: v.station || 'Heathrow', transmission: v.transmission || 'Manual' })));
-  const nextId = React.useRef(VAN_FLEET.length + 1);
+  const [fleet, setFleet] = React.useState([]);
+  const nextId = React.useRef(1);
+
+  React.useEffect(() => {
+    vansApi.list({ station: depot === ALL ? undefined : depot })
+      .then((res) => {
+        const apiFleet = (res.data || []).map((v) => ({
+          id: v.id,
+          reg: v.registration,
+          make: v.make,
+          station: v.station,
+          transmission: v.transmission || 'Manual',
+          doNotUse: v.do_not_use || false,
+          reason: v.reason || '',
+        }));
+        setFleet(apiFleet);
+        nextId.current = apiFleet.length + 1;
+      })
+      .catch((err) => console.error('Failed to fetch vans:', err));
+  }, [depot]);
 
   // Derived lookup: reg → make (recomputed when fleet changes)
   const regToMake = React.useMemo(() => {

@@ -1,110 +1,48 @@
 // app/(drawer)/profile.tsx
-import React, { useMemo } from "react";
+import React from "react";
 import { ScrollView, View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { useRouter } from "expo-router";
 import colors from "../../theme/colors";
-
-type CandidateProfile = {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone: string;
-
-  licenceCountryOfIssue?: string;
-  licenceNumber: string;
-  licenceDatePassed?: string;
-  licenceExpiry: string;
-
-  idType?: string;
-  idExpiry: string;
-  passportCountry: string;
-
-  rightToWork: string;
-  shareCode: string;
-
-  niNumber: string;
-
-  addressLine1: string;
-  addressLine2?: string;
-  town: string;
-  county: string;
-  postcode: string;
-
-  emergencyName?: string;
-  emergencyRelationship?: string;
-  emergencyPhone?: string;
-  emergencyEmail?: string;
-
-  bankName?: string;
-  sortCode?: string;
-  accountNumber?: string;
-  taxReference?: string;
-  vatNumber?: string;
-};
-
-const empty: CandidateProfile = {
-  firstName: "",
-  lastName: "",
-  email: "",
-  phone: "",
-  licenceNumber: "",
-  licenceExpiry: "",
-  idExpiry: "",
-  passportCountry: "",
-  rightToWork: "",
-  shareCode: "",
-  niNumber: "",
-  addressLine1: "",
-  addressLine2: "",
-  town: "",
-  county: "",
-  postcode: "",
-};
+import { useAuth } from "../context/AuthContext";
 
 export default function ProfileScreen() {
-  const data = useMemo(() => empty, []);
+  const { driver } = useAuth();
   const router = useRouter();
 
-  const fullName = [data.firstName, data.lastName].filter(Boolean).join(" ");
+  const d = driver;
+  const fullName = d ? [d.first_name, d.last_name].filter(Boolean).join(" ") : "";
 
-  // Push to /request-change with section + current values for that section
   const goEdit = (section: "Account" | "Emergency Contact" | "Payment & Tax Details") => {
     if (section === "Account") {
       router.push({
         pathname: "/request-change",
-        params: {
-          section,
-          email_current: data.email ?? "",
-          phone_current: data.phone ?? "",
-        },
+        params: { section, email_current: d?.email ?? "", phone_current: d?.phone ?? "" },
       });
       return;
     }
-
     if (section === "Emergency Contact") {
       router.push({
         pathname: "/request-change",
         params: {
           section,
-          name_current: data.emergencyName ?? "",
-          relationship_current: data.emergencyRelationship ?? "",
-          phone_current: data.emergencyPhone ?? "",
-          email_current: data.emergencyEmail ?? "",
+          name_current: d?.emergency_name ?? "",
+          relationship_current: d?.emergency_relationship ?? "",
+          phone_current: d?.emergency_phone ?? "",
+          email_current: d?.emergency_email ?? "",
         },
       });
       return;
     }
-
     if (section === "Payment & Tax Details") {
       router.push({
         pathname: "/request-change",
         params: {
           section,
-          bank_current: data.bankName ?? "",
-          sort_current: data.sortCode ?? "",
-          account_current: data.accountNumber ?? "",
-          utr_current: data.taxReference ?? "",
-          vat_current: data.vatNumber ?? "",
+          bank_current: d?.bank_name ?? "",
+          sort_current: d?.sort_code ?? "",
+          account_current: d?.account_number ?? "",
+          utr_current: d?.tax_reference ?? "",
+          vat_current: d?.vat_number ?? "",
         },
       });
     }
@@ -112,76 +50,61 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.secondary }} contentContainerStyle={{ padding: 16 }}>
-      {/* Editable by candidate */}
       <Section title="Account" onEdit={() => goEdit("Account")}>
         <Row label="Name" value={fullName} />
-        <Row label="Email" value={data.email} />
-        <Row label="Phone" value={fmt(data.phone)} />
+        <Row label="Email" value={d?.email} />
+        <Row label="Phone" value={d?.phone} />
       </Section>
 
-      {/* Read‑only sections (no Edit) */}
-      <Section title="Driver’s Licence">
-        <Row label="Country of Issue" value={data.licenceCountryOfIssue} />
-        <Row label="Licence Number" value={data.licenceNumber} />
-        <Row label="Date Test Passed" value={data.licenceDatePassed} />
-        <Row label="Expiry" value={data.licenceExpiry} />
+      <Section title="Driver's Licence">
+        <Row label="Country of Issue" value={d?.licence_country} />
+        <Row label="Licence Number" value={d?.licence_number} />
+        <Row label="Date Test Passed" value={fmtDate(d?.date_test_passed)} />
+        <Row label="Expiry" value={fmtDate(d?.licence_expiry)} />
       </Section>
 
       <Section title="Identification">
-        <Row label="Document Type" value={data.idType} />
-        <Row label="Passport/ID Expiry" value={data.idExpiry} />
-        <Row label="Country" value={data.passportCountry} />
+        <Row label="Document Type" value={d?.id_document_type} />
+        <Row label="Passport/ID Expiry" value={fmtDate(d?.id_expiry)} />
+        <Row label="Country" value={d?.passport_country} />
       </Section>
 
       <Section title="Right to Work">
-        <Row label="Type" value={data.rightToWork} />
-        {data.rightToWork?.toLowerCase() === "share code" && (
-          <Row label="Share Code" value={data.shareCode} />
+        <Row label="Type" value={d?.right_to_work} />
+        {d?.right_to_work?.toLowerCase() === "share code" && (
+          <Row label="Share Code" value={d?.share_code} />
         )}
       </Section>
 
       <Section title="National Insurance">
-        <Row label="NI Number" value={data.niNumber} />
+        <Row label="NI Number" value={d?.ni_number} />
       </Section>
 
       <Section title="Address">
-        <Row
-          label="Address"
-          value={line([data.addressLine1, data.addressLine2, data.town, data.county])}
-        />
-        <Row label="Postcode" value={data.postcode} />
+        <Row label="Address" value={line([d?.address_line1, d?.address_line2, d?.town, d?.county])} />
+        <Row label="Postcode" value={d?.postcode} />
       </Section>
 
-      {/* Editable by candidate */}
       <Section title="Emergency Contact" onEdit={() => goEdit("Emergency Contact")}>
-        <Row label="Full Name" value={data.emergencyName} />
-        <Row label="Relationship" value={data.emergencyRelationship} />
-        <Row label="Phone" value={data.emergencyPhone} />
-        <Row label="Email" value={data.emergencyEmail} />
+        <Row label="Full Name" value={d?.emergency_name} />
+        <Row label="Relationship" value={d?.emergency_relationship} />
+        <Row label="Phone" value={d?.emergency_phone} />
+        <Row label="Email" value={d?.emergency_email} />
       </Section>
 
-      {/* Editable by candidate */}
       <Section title="Payment & Tax Details" onEdit={() => goEdit("Payment & Tax Details")}>
-        <Row label="Bank / Building Society" value={data.bankName} />
-        <Row label="Sort Code" value={data.sortCode} />
-        <Row label="Account Number" value={data.accountNumber} />
-        <Row label="Unique Tax Reference" value={data.taxReference} />
-        <Row label="VAT Number (If applicable)" value={data.vatNumber} />
+        <Row label="Bank / Building Society" value={d?.bank_name} />
+        <Row label="Sort Code" value={d?.sort_code} />
+        <Row label="Account Number" value={d?.account_number} />
+        <Row label="Unique Tax Reference" value={d?.tax_reference} />
+        <Row label="VAT Number (If applicable)" value={d?.vat_number} />
       </Section>
     </ScrollView>
   );
 }
 
 /* ---------- UI bits ---------- */
-function Section({
-  title,
-  children,
-  onEdit,
-}: {
-  title: string;
-  children: React.ReactNode;
-  onEdit?: () => void;
-}) {
+function Section({ title, children, onEdit }: { title: string; children: React.ReactNode; onEdit?: () => void }) {
   return (
     <View style={styles.card}>
       <View style={styles.sectionHeader}>
@@ -198,8 +121,9 @@ function Section({
   );
 }
 
-function Row({ label, value }: { label: string; value?: string }) {
-  const v = value && value.trim() ? value : "— —";
+function Row({ label, value }: { label: string; value?: string | number | null }) {
+  const str = value != null ? String(value) : "";
+  const v = str.trim() ? str : "— —";
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label} • </Text>
@@ -208,9 +132,22 @@ function Row({ label, value }: { label: string; value?: string }) {
   );
 }
 
-/* ---------- helpers ---------- */
-const fmt = (s?: string) => (s && s.trim() ? s : "");
-const line = (parts: (string | undefined)[]) => parts.filter(Boolean).join(", ");
+const line = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(", ");
+
+/** Format a value that might be a Unix timestamp (ms), ISO string, or plain date string */
+function fmtDate(val: string | number | null | undefined): string | null {
+  if (val == null) return null;
+  const n = typeof val === "string" ? Number(val) : val;
+  // If it's a large number, treat as Unix ms timestamp
+  if (typeof n === "number" && !isNaN(n) && n > 1e9) {
+    return new Date(n).toLocaleDateString("en-GB");
+  }
+  // If it's a date-like string, format it
+  if (typeof val === "string" && val.match(/^\d{4}-\d{2}/)) {
+    return new Date(val).toLocaleDateString("en-GB");
+  }
+  return String(val);
+}
 
 /* ---------- styles ---------- */
 const styles = StyleSheet.create({
