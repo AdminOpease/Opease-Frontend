@@ -64,6 +64,7 @@ function MultiStepForm() {
     // Step 6 – Right to Work
     rightToWork: "",
     shareCode: "",
+    visaExpiry: "",
     rightToWorkFile: null,
 
     // Step 7 – NI
@@ -89,12 +90,12 @@ function MultiStepForm() {
     // Load available stations from backend API
     stationsApi.list()
       .then((res) => {
-        const list = (res.data || res || []).map((s) => s.name || s);
+        const list = (res.data || res || []).map((s) => s.code || s.name || s);
         if (list.length) setStations(list);
-        else setStations(["DLU2", "Heathrow", "Greenwich", "Battersea"]);
+        else setStations(["DLU2"]);
       })
       .catch(() => {
-        setStations(["DLU2", "Heathrow", "Greenwich", "Battersea"]);
+        setStations(["DLU2"]);
       });
 
     const timer = setTimeout(() => setLoading(false), 4000);
@@ -343,6 +344,7 @@ function MultiStepForm() {
         passportCountry: formData.passportCountry,
         rightToWork: formData.rightToWork,
         shareCode: formData.shareCode,
+        visaExpiry: formData.visaExpiry || null,
         niNumber: formData.niNumber,
         addressLine1: formData.addressLine1,
         addressLine2: formData.addressLine2,
@@ -1159,6 +1161,8 @@ function MultiStepForm() {
                 <option value="British Passport">British Passport</option>
                 <option value="Birth Certificate">British Birth Certificate</option>
                 <option value="Share Code">Right to Work Share Code</option>
+                <option value="Visa">Visa</option>
+                <option value="Pre-Settled Status">Pre-Settled Status</option>
               </select>
             </div>
 
@@ -1218,6 +1222,42 @@ function MultiStepForm() {
                 <label
                   htmlFor="shareCode"
                   className="block text-sm font-semibold text-gray-700 mb-1"
+                >
+                  Share Code
+                </label>
+                <input
+                  type="text"
+                  id="shareCode"
+                  name="shareCode"
+                  placeholder="Enter Share Code (9 characters)"
+                  className="w-full border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E4C1E]"
+                  value={formData.shareCode}
+                  onChange={handleChange}
+                  required
+                />
+              </div>
+            )}
+
+            {(formData.rightToWork === "Visa" || formData.rightToWork === "Pre-Settled Status") && (
+              <div>
+                <label
+                  htmlFor="visaExpiry"
+                  className="block text-sm font-semibold text-gray-700 mb-1"
+                >
+                  Visa / Right to Work Expiry Date
+                </label>
+                <input
+                  type="date"
+                  id="visaExpiry"
+                  name="visaExpiry"
+                  className="w-full border p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#2E4C1E]"
+                  value={formData.visaExpiry}
+                  onChange={handleChange}
+                  required
+                />
+                <label
+                  htmlFor="shareCode"
+                  className="block text-sm font-semibold text-gray-700 mb-1 mt-4"
                 >
                   Share Code
                 </label>

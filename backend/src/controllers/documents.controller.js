@@ -22,37 +22,92 @@ export async function list(req, res, next) {
   }
 }
 
+function parseDate(val) {
+  if (!val) return null;
+  // Handle Unix ms timestamps (numbers or numeric strings)
+  const n = typeof val === 'string' ? Number(val) : val;
+  if (typeof n === 'number' && !isNaN(n) && n > 1e9) return new Date(n);
+  // Handle ISO/date strings
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function daysUntil(val) {
+  const d = parseDate(val);
+  if (!d) return null;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d - now) / 86400000);
+}
+
+function addMonths(val, months) {
+  const d = parseDate(val);
+  if (!d) return null;
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString().slice(0, 10);
+}
+
 export async function getExpiring(req, res, next) {
   try {
     const { depot } = req.query;
-    const today = new Date().toISOString().slice(0, 10);
 
-    let query = db('documents as doc')
-      .join('drivers as d', 'doc.driver_id', 'd.id')
-      .select(
-        'doc.*',
-        'd.first_name', 'd.last_name', 'd.email as driver_email', 'd.depot',
-        db.raw(`cast(julianday(doc.expiry_date) - julianday(date('now')) as integer) as days_remaining`)
-      )
-      .whereNull('doc.deleted_at')
-      .whereNull('doc.archived_at')
-      .whereNotNull('doc.expiry_date')
-      .where('doc.expiry_date', '>=', today)
-      .where(function () {
-        this.where(function () {
-          this.where('doc.type', 'DVLA')
-            .whereRaw(`cast(julianday(doc.expiry_date) - julianday(date('now')) as integer) <= 7`);
-        }).orWhere(function () {
-          this.whereNot('doc.type', 'DVLA')
-            .whereRaw(`cast(julianday(doc.expiry_date) - julianday(date('now')) as integer) <= 30`);
-        });
-      })
-      .orderBy('days_remaining', 'asc');
+    let query = db('drivers').where({ status: 'Active' });
+    if (depot && depot !== 'All Depots') query = query.where('depot', depot);
+    const drivers = await query;
 
-    if (depot && depot !== 'All Depots') query = query.where('d.depot', depot);
+    const rows = [];
+    for (const d of drivers) {
+      const base = {
+        driver_id: d.id,
+        driver_name: [d.first_name, d.last_name].filter(Boolean).join(' '),
+        driver_email: d.email,
+        driver_phone: d.phone,
+        depot: d.depot,
+      };
 
-    const data = await query;
-    res.json({ data });
+      // Licence expiry (30-day window)
+      if (d.licence_expiry) {
+        const parsed = parseDate(d.licence_expiry);
+        const expiryStr = parsed ? parsed.toISOString().slice(0, 10) : null;
+        const days = daysUntil(d.licence_expiry);
+        if (days !== null && days <= 30) {
+          rows.push({ ...base, type: 'Licence', expiry_date: expiryStr, days_remaining: days });
+        }
+      }
+
+      // DVLA Check (3-month cycle, 30-day window)
+      if (d.last_dvla_check) {
+        const dvlaExpiry = addMonths(d.last_dvla_check, 3);
+        if (dvlaExpiry) {
+          const days = daysUntil(dvlaExpiry);
+          if (days !== null && days <= 30) {
+            rows.push({
+              ...base, type: 'DVLA', expiry_date: dvlaExpiry, days_remaining: days,
+              dvla_check_code: d.dvla_check_code || null,
+              dvla_code_submitted_at: d.dvla_code_submitted_at || null,
+            });
+          }
+        }
+      }
+
+      // Right to Work — any type with visa_expiry set (Share Code, Visa, Pre-Settled Status)
+      if (d.right_to_work && !['British Passport', 'Birth Certificate'].includes(d.right_to_work) && d.visa_expiry) {
+        const rtwParsed = parseDate(d.visa_expiry);
+        const rtwExpiryStr = rtwParsed ? rtwParsed.toISOString().slice(0, 10) : null;
+        const days = daysUntil(d.visa_expiry);
+        if (days !== null && days <= 30) {
+          rows.push({
+            ...base, type: 'Right to Work', expiry_date: rtwExpiryStr, days_remaining: days,
+            rtw_share_code_new: d.rtw_share_code_new || null,
+            rtw_code_submitted_at: d.rtw_code_submitted_at || null,
+          });
+        }
+      }
+    }
+
+    rows.sort((a, b) => a.days_remaining - b.days_remaining);
+    res.json({ data: rows });
   } catch (err) {
     next(err);
   }

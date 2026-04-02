@@ -1,10 +1,11 @@
 // app/(drawer)/documents.tsx
 import React, { useState, useEffect } from "react";
 import {
-  ScrollView, View, Text, StyleSheet, TouchableOpacity, Alert, Modal, FlatList,
+  ScrollView, View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, Modal, FlatList, ActivityIndicator,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as WebBrowser from "expo-web-browser";
+import { Ionicons } from "@expo/vector-icons";
 import colors from "../../theme/colors";
 import { useAuth } from "../context/AuthContext";
 import { documents as docsApi } from "../lib/api";
@@ -115,37 +116,76 @@ export default function DocumentsScreen() {
   }, [driver?.id]);
 
   // Upload flow
-  const [pendingFile, setPendingFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
-  const [pickerVisible, setPickerVisible] = useState(false);
+  const DOC_TYPES = ["Driver's Licence", "Identification", "Right to Work", "National Insurance", "Proof of Address", "Other"];
+  const [uploadVisible, setUploadVisible] = useState(false);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadType, setUploadType] = useState(DOC_TYPES[0]);
+  const [uploadExpiry, setUploadExpiry] = useState("");
+  const [uploadFile, setUploadFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [uploadShareCode, setUploadShareCode] = useState("");
+  const [uploadDvlaCode, setUploadDvlaCode] = useState("");
+  const [uploading, setUploading] = useState(false);
 
-  const pickAndUpload = async () => {
+  const resetUpload = () => {
+    setUploadTitle("");
+    setUploadType(DOC_TYPES[0]);
+    setUploadExpiry("");
+    setUploadFile(null);
+    setUploadShareCode("");
+    setUploadDvlaCode("");
+    setUploadVisible(false);
+  };
+
+  const pickFile = async () => {
     const res = await DocumentPicker.getDocumentAsync({ multiple: false });
     if (res.canceled || !res.assets?.length) return;
-    setPendingFile(res.assets[0]);
-    setPickerVisible(true);
+    setUploadFile(res.assets[0]);
+    if (!uploadTitle) setUploadTitle(res.assets[0].name?.replace(/\.[^.]+$/, "") || "");
   };
 
-  const confirmUploadToGroup = (groupId: string) => {
-    if (!pendingFile) return;
-    const file = pendingFile;
-    const newItem: DocItem = {
-      id: Math.random().toString(36).slice(2),
-      name: file.name || "Document",
-      uri: file.uri,
-      type: file.mimeType ?? null,
-      uploadedBy: "candidate",
-      uploadedAt: new Date().toISOString(),
-    };
-    setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, items: [...g.items, newItem] } : g)));
-    const groupTitle = groups.find((g) => g.id === groupId)?.title ?? "Selected section";
-    setPickerVisible(false);
-    setPendingFile(null);
-    Alert.alert("Uploaded", `${newItem.name} added to ${groupTitle}.`);
-  };
-
-  const startSigning = async (contractId: string) => {
-    const url = "https://example.com/mock-signing";
-    await WebBrowser.openBrowserAsync(url);
+  const submitUpload = async () => {
+    if (!uploadTitle.trim() || !uploadFile) {
+      Alert.alert("Required", "Please enter a title and select a file.");
+      return;
+    }
+    try {
+      setUploading(true);
+      await docsApi.upload({
+        driver_id: driver!.id,
+        type: uploadType,
+        file_name: uploadFile.name || "document",
+        title: uploadTitle.trim(),
+        expiry_date: uploadExpiry || undefined,
+      });
+      // Submit share code if provided (Right to Work)
+      if (uploadType === "Right to Work" && uploadShareCode.trim()) {
+        const { driverActions } = await import("../lib/api");
+        await driverActions.submitRtwCode(uploadShareCode.trim());
+      }
+      // Submit DVLA code if provided (Driver's Licence)
+      if (uploadType === "Driver's Licence" && uploadDvlaCode.trim()) {
+        const { driverActions } = await import("../lib/api");
+        await driverActions.submitDvlaCode(uploadDvlaCode.trim());
+      }
+      // Add to local state
+      const typeMap: Record<string, string> = { "Driver's Licence": "licence", "Identification": "identification", "Right to Work": "right_to_work", "National Insurance": "national_insurance", "Proof of Address": "proof_of_address" };
+      const groupId = typeMap[uploadType] || "other";
+      const newItem: DocItem = {
+        id: Math.random().toString(36).slice(2),
+        name: uploadTitle.trim(),
+        uri: uploadFile.uri,
+        type: uploadFile.mimeType ?? null,
+        uploadedBy: "candidate",
+        uploadedAt: new Date().toISOString(),
+      };
+      setGroups((prev) => prev.map((g) => (g.id === groupId ? { ...g, items: [...g.items, newItem] } : g)));
+      resetUpload();
+      Alert.alert("Uploaded", "Document uploaded successfully.");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const openContract = async (fileUrl?: string) => {
@@ -156,7 +196,7 @@ export default function DocumentsScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.secondary }} contentContainerStyle={{ padding: 16 }}>
       <View style={[styles.card, { marginBottom: 12 }]}>
-        <TouchableOpacity style={styles.primaryBtn} onPress={pickAndUpload}>
+        <TouchableOpacity style={styles.primaryBtn} onPress={() => setUploadVisible(true)}>
           <Text style={styles.primaryBtnText}>Upload Document</Text>
         </TouchableOpacity>
       </View>
@@ -186,54 +226,119 @@ export default function DocumentsScreen() {
         </View>
       ))}
 
-      <View style={styles.card}>
-        <Text style={styles.groupTitle}>Contracts</Text>
-        <View style={styles.divider} />
-        {contracts.length === 0 ? (
-          <Text style={styles.empty}>No contracts assigned.</Text>
-        ) : (
-          contracts.map((ct) => (
-            <View key={ct.id} style={styles.row}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rowTitle}>{ct.title}</Text>
-                <Text style={styles.rowSub}>
-                  {ct.status === "pending" ? "Awaiting signature" : ct.status === "completed" ? "Signed" : ct.status}
-                  {ct.dueDate ? ` • Due ${new Date(ct.dueDate).toLocaleDateString()}` : ""}
-                </Text>
-              </View>
-              <StatusChip status={ct.status} />
-              {ct.status === "pending" && (
-                <TouchableOpacity style={styles.pill} onPress={() => startSigning(ct.id)}>
-                  <Text style={styles.pillText}>Sign</Text>
-                </TouchableOpacity>
-              )}
-              {ct.status === "completed" && ct.fileUrl && (
-                <TouchableOpacity style={styles.pill} onPress={() => openContract(ct.fileUrl)}>
-                  <Text style={styles.pillText}>Open</Text>
-                </TouchableOpacity>
-              )}
+      {/* Upload Document Modal */}
+      <Modal visible={uploadVisible} transparent animationType="slide" onRequestClose={resetUpload}>
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 20 }}>
+          <View style={styles.uploadModal}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
+              <Ionicons name="cloud-upload-outline" size={20} color={colors.primary} />
+              <Text style={{ fontWeight: "800", color: colors.text, fontSize: 16, marginLeft: 8 }}>Upload Document</Text>
             </View>
-          ))
-        )}
-      </View>
 
-      <Modal visible={pickerVisible} transparent animationType="slide" onRequestClose={() => { setPickerVisible(false); setPendingFile(null); }}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" }}>
-          <View style={{ backgroundColor: colors.white, padding: 16, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
-            <Text style={{ fontWeight: "800", color: colors.text, fontSize: 16, marginBottom: 10 }}>Choose a section</Text>
-            <FlatList
-              data={groups}
-              keyExtractor={(g) => g.id}
-              ItemSeparatorComponent={() => <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: "#eee" }} />}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={{ paddingVertical: 12 }} onPress={() => confirmUploadToGroup(item.id)}>
-                  <Text style={{ color: "#1F2937", fontWeight: "600" }}>{item.title}</Text>
-                </TouchableOpacity>
-              )}
+            {/* Document Title */}
+            <Text style={styles.uploadLabel}>Document Title</Text>
+            <TextInput
+              style={styles.uploadInput}
+              value={uploadTitle}
+              onChangeText={setUploadTitle}
+              placeholder="e.g., Driving Licence Front"
             />
-            <TouchableOpacity onPress={() => { setPickerVisible(false); setPendingFile(null); }} style={{ marginTop: 12, alignItems: "center", paddingVertical: 12 }}>
-              <Text style={{ color: "#6B7280", fontWeight: "600" }}>Cancel</Text>
+
+            {/* Document Type */}
+            <Text style={styles.uploadLabel}>Document Type</Text>
+            <View style={styles.uploadTypeRow}>
+              {DOC_TYPES.map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={[styles.uploadTypeChip, uploadType === t && styles.uploadTypeChipActive]}
+                  onPress={() => setUploadType(t)}
+                >
+                  <Text style={[styles.uploadTypeText, uploadType === t && styles.uploadTypeTextActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Expiry Date — only for types that expire */}
+            {(uploadType === "Driver's Licence" || uploadType === "Identification") && (
+              <>
+                <Text style={styles.uploadLabel}>Expiry Date</Text>
+                <TextInput
+                  style={styles.uploadInput}
+                  value={uploadExpiry}
+                  onChangeText={setUploadExpiry}
+                  placeholder="YYYY-MM-DD"
+                  keyboardType="numeric"
+                />
+              </>
+            )}
+
+            {/* DVLA Check Code — for Driver's Licence only */}
+            {uploadType === "Driver's Licence" && (
+              <>
+                <Text style={styles.uploadLabel}>DVLA Check Code</Text>
+                <TextInput
+                  style={styles.uploadInput}
+                  value={uploadDvlaCode}
+                  onChangeText={setUploadDvlaCode}
+                  placeholder="Enter DVLA check code"
+                  autoCapitalize="characters"
+                  maxLength={20}
+                />
+              </>
+            )}
+
+            {/* Share Code — for Right to Work only */}
+            {uploadType === "Right to Work" && (
+              <>
+                <Text style={styles.uploadLabel}>Share Code <Text style={{ fontWeight: "400", color: "#9CA3AF" }}>(9 characters)</Text></Text>
+                <TextInput
+                  style={styles.uploadInput}
+                  value={uploadShareCode}
+                  onChangeText={setUploadShareCode}
+                  placeholder="e.g., ABC123DEF"
+                  autoCapitalize="characters"
+                  maxLength={9}
+                />
+              </>
+            )}
+
+            {/* File Selection */}
+            <Text style={styles.uploadLabel}>File</Text>
+            <TouchableOpacity style={styles.uploadDropZone} onPress={pickFile}>
+              {uploadFile ? (
+                <View style={{ alignItems: "center" }}>
+                  <Ionicons name="document" size={28} color={colors.primary} />
+                  <Text style={{ fontWeight: "600", color: colors.text, marginTop: 4 }}>{uploadFile.name}</Text>
+                </View>
+              ) : (
+                <View style={{ alignItems: "center" }}>
+                  <Ionicons name="cloud-upload-outline" size={32} color="#9CA3AF" />
+                  <Text style={{ fontWeight: "600", color: colors.text, marginTop: 4 }}>Tap to select file</Text>
+                  <Text style={{ color: "#9CA3AF", fontSize: 12, marginTop: 2 }}>PDF, JPG, PNG up to 10MB</Text>
+                </View>
+              )}
             </TouchableOpacity>
+
+            {/* Actions */}
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={styles.uploadCancelBtn} onPress={resetUpload}>
+                <Text style={{ color: "#6B7280", fontWeight: "600" }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.uploadSubmitBtn, (!uploadTitle.trim() || !uploadFile || uploading) && { opacity: 0.5 }]}
+                onPress={submitUpload}
+                disabled={!uploadTitle.trim() || !uploadFile || uploading}
+              >
+                {uploading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="cloud-upload-outline" size={14} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "700", marginLeft: 4 }}>Upload</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -276,6 +381,68 @@ const styles = StyleSheet.create({
   card: { backgroundColor: colors.white, borderRadius: 12, padding: 16, marginBottom: 16, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
   primaryBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
   primaryBtnText: { color: "#fff", fontWeight: "700" },
+  uploadPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
+  uploadPillText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+  uploadModal: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    maxWidth: 440,
+    width: "100%",
+    alignSelf: "center",
+  },
+  uploadLabel: { fontWeight: "700", color: "#374151", fontSize: 13, marginBottom: 6, marginTop: 12 },
+  uploadInput: {
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: "#111827",
+  },
+  uploadTypeRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  uploadTypeChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    backgroundColor: "#F9FAFB",
+  },
+  uploadTypeChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  uploadTypeText: { fontSize: 12, fontWeight: "600", color: "#374151" },
+  uploadTypeTextActive: { color: "#fff" },
+  uploadDropZone: {
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderColor: "#D1D5DB",
+    borderRadius: 8,
+    paddingVertical: 20,
+    alignItems: "center",
+    backgroundColor: "#FAFAFA",
+  },
+  uploadCancelBtn: { paddingVertical: 10, paddingHorizontal: 16 },
+  uploadSubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
   groupTitle: { fontWeight: "800", color: colors.text, marginBottom: 6, fontSize: 16 },
   subgroupTitle: { fontWeight: "700", color: colors.text, marginBottom: 4, marginTop: 4 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#E5E7EB", marginBottom: 8 },

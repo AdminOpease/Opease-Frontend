@@ -5,6 +5,7 @@ import { Box, Paper, Stack, Typography, Button, Divider } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
 import StatusChip from '../../../components/common/StatusChip';
+import { useAppStore } from '../../../state/AppStore';
 
 const TABS = [
   { label: 'Profile', path: 'profile', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
@@ -32,14 +33,18 @@ export default function DriverDetailLayout() {
   const { email } = useParams();
   const { pathname } = useLocation();
 
-  // demo only—status hard-coded; later fetch by email
-  const status = 'Onboarding';
+  const { drivers } = useAppStore();
+  const decodedEmail = decodeURIComponent(email || '');
+  const driver = drivers.find((d) => d.email === decodedEmail);
+  const status = driver?.status || 'Onboarding';
+  const driverName = driver ? [driver.first_name, driver.last_name].filter(Boolean).join(' ') : '';
+  const depot = driver?.depot || '—';
 
   return (
     <Box>
       {/* Page header */}
       <Stack direction="row" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6" sx={{ mr: 1.5 }}>{email}</Typography>
+        <Typography variant="h6" sx={{ mr: 1.5, fontWeight: 700 }}>{driverName || email}</Typography>
         <StatusChip status={status} />
       </Stack>
 
@@ -47,8 +52,29 @@ export default function DriverDetailLayout() {
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
         {/* Sidebar */}
         <Box sx={{ width: { md: 180 }, flexShrink: 0 }}>
-          {/* Nav card */}
+          {/* Status & Station card */}
           <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, mb: 1.5 }}>
+            <Stack spacing={1}>
+              <Stack direction="column" alignItems="center" spacing={0.5}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Status
+                </Typography>
+                <StatusChip status={status} />
+              </Stack>
+              <Divider />
+              <Stack direction="column" alignItems="center" spacing={0.5}>
+                <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                  Station
+                </Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: 14, color: 'text.primary' }}>
+                  {depot}
+                </Typography>
+              </Stack>
+            </Stack>
+          </Paper>
+
+          {/* Nav card */}
+          <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
             <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
               Driver
             </Typography>
@@ -70,14 +96,6 @@ export default function DriverDetailLayout() {
                 );
               })}
             </Stack>
-          </Paper>
-
-          {/* Status card */}
-          <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2 }}>
-            <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
-              Status
-            </Typography>
-            <StatusChip status={status} />
           </Paper>
         </Box>
 

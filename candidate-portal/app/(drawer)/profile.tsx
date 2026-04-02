@@ -85,14 +85,24 @@ export default function ProfileScreen() {
         <Row label="Postcode" value={d?.postcode} />
       </Section>
 
-      <Section title="Emergency Contact" onEdit={() => goEdit("Emergency Contact")}>
+      <Section
+        title="Emergency Contact"
+        onEdit={!(d?.emergency_name?.trim() && d?.emergency_phone?.trim()) ? () => goEdit("Emergency Contact") : undefined}
+        locked={!!(d?.emergency_name?.trim() && d?.emergency_phone?.trim())}
+        lockedMessage="Contact your manager to request changes"
+      >
         <Row label="Full Name" value={d?.emergency_name} />
         <Row label="Relationship" value={d?.emergency_relationship} />
         <Row label="Phone" value={d?.emergency_phone} />
         <Row label="Email" value={d?.emergency_email} />
       </Section>
 
-      <Section title="Payment & Tax Details" onEdit={() => goEdit("Payment & Tax Details")}>
+      <Section
+        title="Payment & Tax Details"
+        onEdit={!(d?.bank_name?.trim() && d?.sort_code?.trim() && d?.account_number?.trim()) ? () => goEdit("Payment & Tax Details") : undefined}
+        locked={!!(d?.bank_name?.trim() && d?.sort_code?.trim() && d?.account_number?.trim())}
+        lockedMessage="Contact your manager to request changes"
+      >
         <Row label="Bank / Building Society" value={d?.bank_name} />
         <Row label="Sort Code" value={d?.sort_code} />
         <Row label="Account Number" value={d?.account_number} />
@@ -104,7 +114,7 @@ export default function ProfileScreen() {
 }
 
 /* ---------- UI bits ---------- */
-function Section({ title, children, onEdit }: { title: string; children: React.ReactNode; onEdit?: () => void }) {
+function Section({ title, children, onEdit, locked, lockedMessage }: { title: string; children: React.ReactNode; onEdit?: () => void; locked?: boolean; lockedMessage?: string }) {
   return (
     <View style={styles.card}>
       <View style={styles.sectionHeader}>
@@ -113,6 +123,11 @@ function Section({ title, children, onEdit }: { title: string; children: React.R
           <TouchableOpacity onPress={onEdit}>
             <Text style={styles.editText}>Edit</Text>
           </TouchableOpacity>
+        ) : locked ? (
+          <View style={{ alignItems: "flex-end" }}>
+            <Text style={styles.lockedText}>🔒 Locked</Text>
+            {lockedMessage ? <Text style={[styles.lockedText, { fontSize: 11 }]}>{lockedMessage}</Text> : null}
+          </View>
         ) : null}
       </View>
       <View style={styles.divider} />
@@ -165,6 +180,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   sectionTitle: { fontWeight: "700", color: colors.text, marginBottom: 6 },
   editText: { color: colors.primary, fontWeight: "600" },
+  lockedText: { color: "#9CA3AF", fontWeight: "600", fontSize: 13 },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: "#eee", marginBottom: 8 },
   row: { flexDirection: "row", marginBottom: 6 },
   rowLabel: { color: "#374151" },

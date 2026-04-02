@@ -25,10 +25,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="notifications"
         options={{
-          title: "Notifications",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="notifications" color={color} size={size} />
-          ),
+          href: null, // hidden from tab bar
         }}
       />
     </Tabs>

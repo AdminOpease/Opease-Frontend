@@ -117,7 +117,6 @@ export default function AppLayout() {
             >
               {[
                 { to: '/admin/drivers', label: 'Drivers' },
-                { to: '/admin/working-hours', label: 'Working Hours' },
                 { to: '/admin/stations', label: 'Stations' },
                 { to: '/admin/expiring-docs', label: 'Expiring Documents' },
               ].map(({ to, label }) => (
@@ -170,8 +169,9 @@ export default function AppLayout() {
             >
               {[
                 { to: '/operations/rota', label: 'Rota' },
-                { to: '/operations/vans', label: 'Vans' },
-                { to: '/operations/plan', label: 'Plan' },
+                { to: '/operations/vans', label: 'Van Assignment' },
+                { to: '/operations/plan', label: 'Daily Plan' },
+                { to: '/operations/working-hours', label: 'Working Hours' },
               ].map(({ to, label }) => (
                 <MenuItem
                   key={to}

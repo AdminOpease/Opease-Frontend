@@ -25,6 +25,7 @@ function del(path) { return request(path, { method: 'DELETE' }); }
 export const drivers = {
   list: (params) => get(`/drivers?${qs(params)}`),
   getById: (id) => get(`/drivers/${id}`),
+  create: (data) => post('/drivers', data),
   update: (id, data) => patch(`/drivers/${id}`, data),
   updateStatus: (id, data) => patch(`/drivers/${id}/status`, data),
 };
@@ -51,6 +52,12 @@ export const rota = {
   updateShift: (id, data) => patch(`/rota/schedule/${id}`, data),
   bulkUpdate: (schedules) => post('/rota/bulk', { schedules }),
   capacity: (params) => get(`/rota/capacity?${qs(params)}`),
+  requestAvailability: (data) => post('/rota/availability/request', data),
+  getAvailability: (params) => get(`/rota/availability?${qs(params)}`),
+  applyAvailability: (data) => post('/rota/availability/apply', data),
+  createTransfer: (data) => post('/rota/transfers', data),
+  deleteTransfer: (data) => request('/rota/transfers', { method: 'DELETE', body: JSON.stringify(data) }),
+  updateTransferAssignment: (data) => patch('/rota/transfers/assignment', data),
 };
 
 // ─── Plans ────────────────────────────────────────
@@ -63,6 +70,7 @@ export const planAm = {
   updateRow: (id, data) => patch(`/plans/am/rows/${id}`, data),
   deleteRow: (id) => del(`/plans/am/rows/${id}`),
   importPlan: (data) => post('/plans/am/import', data),
+  generate: (data) => post('/plans/am/generate', data),
 };
 
 export const planPm = {
@@ -72,6 +80,7 @@ export const planPm = {
   deleteSection: (id) => del(`/plans/pm/sections/${id}`),
   addDriver: (sectionId, data) => post(`/plans/pm/sections/${sectionId}/drivers`, data),
   removeDriver: (sectionId, driverId) => del(`/plans/pm/sections/${sectionId}/drivers/${driverId}`),
+  generate: (data) => post('/plans/pm/generate', data),
 };
 
 // ─── Vans ─────────────────────────────────────────
@@ -88,6 +97,24 @@ export const vans = {
 // ─── Stations ─────────────────────────────────────
 export const stations = {
   list: () => get('/stations'),
+  create: (data) => post('/stations', data),
+  update: (id, data) => patch(`/stations/${id}`, data),
+  remove: (id) => del(`/stations/${id}`),
+};
+
+// ─── Working Hours ───────────────────────────────
+export const workingHours = {
+  list: (params) => get(`/working-hours?${qs(params)}`),
+  create: (data) => post('/working-hours', data),
+  update: (id, data) => patch(`/working-hours/${id}`, data),
+  remove: (id) => del(`/working-hours/${id}`),
+  importData: (data) => post('/working-hours/import', data),
+};
+
+// ─── Change Requests ─────────────────────────────
+export const changeRequestsApi = {
+  list: (params) => get(`/change-requests?${qs(params)}`),
+  update: (id, data) => patch(`/change-requests/${id}`, data),
 };
 
 // ─── Auth ─────────────────────────────────────────

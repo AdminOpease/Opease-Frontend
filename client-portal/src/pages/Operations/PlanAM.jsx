@@ -131,35 +131,53 @@ export default function PlanAM() {
   // Fetch AM plan groups from API
   const [groups, setGroups] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [syncing, setSyncing] = React.useState(false);
 
-  React.useEffect(() => {
+  const mapGroups = (data) => (data || []).map((g) => ({
+    id: g.id,
+    group: g.title,
+    time: g.time,
+    color: g.color,
+    bg_color: g.bg_color,
+    linked_shift_code: g.linked_shift_code,
+    rows: (g.rows || []).map((r) => ({
+      id: r.id,
+      driver: `${r.first_name} ${r.last_name}`,
+      tid: r.transporter_id || r.amazon_id || '',
+      van: r.van || r.assigned_van || '',
+      route: r.route || '',
+      bay: r.bay || '',
+      atlas: r.atlas || '',
+    })),
+  }));
+
+  const fetchPlan = React.useCallback(async () => {
     const dateStr = toISO(currentDate);
     if (depot === ALL) return;
     setLoading(true);
-    planAmApi.list({ date: dateStr, depot })
-      .then((res) => {
-        const apiGroups = (res.data || []).map((g) => ({
-          id: g.id,
-          group: g.title,
-          time: g.time,
-          color: g.color,
-          bg_color: g.bg_color,
-          linked_shift_code: g.linked_shift_code,
-          rows: (g.rows || []).map((r) => ({
-            id: r.id,
-            driver: `${r.first_name} ${r.last_name}`,
-            tid: r.amazon_id || '',
-            van: r.van || '',
-            route: r.route || '',
-            bay: r.bay || '',
-            atlas: r.atlas || '',
-          })),
-        }));
-        setGroups(apiGroups);
-      })
-      .catch((err) => console.error('Failed to fetch AM plan:', err))
-      .finally(() => setLoading(false));
+    try {
+      const res = await planAmApi.list({ date: dateStr, depot });
+      setGroups(mapGroups(res.data));
+    } catch (err) {
+      console.error('Failed to fetch AM plan:', err);
+    }
+    setLoading(false);
   }, [dayOffset, depot]);
+
+  React.useEffect(() => { fetchPlan(); }, [fetchPlan]);
+
+  // After creating/linking a group, auto-populate drivers from rota
+  const syncFromRota = async () => {
+    const dateStr = toISO(currentDate);
+    if (depot === ALL) return;
+    try {
+      await planAmApi.generate({ date: dateStr, depot });
+      const res = await planAmApi.list({ date: dateStr, depot });
+      setGroups(mapGroups(res.data));
+    } catch (err) {
+      console.error('Failed to sync from rota:', err);
+    }
+  };
 
   // Route group header options
   const defaultOptions = groups.map((g) => `${g.group} - ${g.time}`);
@@ -171,6 +189,13 @@ export default function PlanAM() {
   const [hiddenSections, setHiddenSections] = React.useState(new Set());
   const [sectionLinks, setSectionLinks] = React.useState({});
 
+  // Initialize sectionLinks from API data
+  React.useEffect(() => {
+    const links = {};
+    groups.forEach((g, i) => { if (g.linked_shift_code) links[i] = g.linked_shift_code; });
+    setSectionLinks(links);
+  }, [groups]);
+
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
   const [newOption, setNewOption] = React.useState('');
 
@@ -179,7 +204,9 @@ export default function PlanAM() {
 
   // Upload feedback
   const [snackbar, setSnackbar] = React.useState({ open: false, message: '', severity: 'success' });
+  const [unmatchedRoutes, setUnmatchedRoutes] = React.useState([]);
   const fileInputRef = React.useRef(null);
+  const stgFileInputRef = React.useRef(null);
 
   // Use groups directly (rota linking simplified for now)
   const resolvedGroups = groups;
@@ -241,29 +268,128 @@ export default function PlanAM() {
           }
         });
 
-        // Match against current table rows and apply edits
+        // Match against current table rows and apply edits + persist to API
         let matchCount = 0;
+        const matchedTids = new Set();
         const newEdits = { ...cellEdits };
         resolvedGroups.forEach((g, gIdx) => {
           g.rows.forEach((row, rIdx) => {
             const match = lookup[row.tid];
             if (match) {
               matchCount++;
+              matchedTids.add(row.tid);
+              const updates = {};
               Object.entries(match).forEach(([key, val]) => {
-                if (val) newEdits[`${gIdx}-${rIdx}-${key}`] = val;
+                if (val) {
+                  newEdits[`${gIdx}-${rIdx}-${key}`] = val;
+                  updates[key] = val;
+                }
               });
+              // Persist to backend
+              if (row.id && Object.keys(updates).length > 0) {
+                planAmApi.updateRow(row.id, updates).catch((err) => console.error('Failed to save upload row:', err));
+              }
             }
           });
         });
 
+        // Find routes from the file that were not assigned to any driver on the plan
+        const unmatched = rows
+          .filter((r) => {
+            const tid = String(r[tidCol] || '').trim();
+            return tid && !matchedTids.has(tid);
+          })
+          .map((r) => ({
+            route: routeCol ? String(r[routeCol] || '') : '',
+            driver: String(r['Driver name'] || r['driver_name'] || r['Driver'] || ''),
+            tid: String(r[tidCol] || ''),
+          }));
+
         setCellEdits(newEdits);
+        setUnmatchedRoutes(unmatched);
         setSnackbar({
           open: true,
-          message: `Matched ${matchCount} driver${matchCount !== 1 ? 's' : ''} from ${rows.length} rows`,
-          severity: matchCount > 0 ? 'success' : 'warning',
+          message: `Matched ${matchCount} of ${rows.length} routes` + (unmatched.length > 0 ? ` · ${unmatched.length} unassigned` : ''),
+          severity: matchCount > 0 ? (unmatched.length > 0 ? 'warning' : 'success') : 'warning',
         });
       } catch (err) {
         setSnackbar({ open: true, message: 'Failed to read file: ' + err.message, severity: 'error' });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  // STG (Staging Location) upload handler
+  const handleStgUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        const headers = Object.keys(rows[0] || {});
+        const routeCol = headers.find((h) => /route.*code/i.test(h) || /^route$/i.test(h));
+        const stgCol = headers.find((h) => /staging/i.test(h) || /stg/i.test(h) || /bay/i.test(h));
+
+        if (!routeCol || !stgCol) {
+          setSnackbar({ open: true, message: 'Could not find Route Code or Staging Location column', severity: 'error' });
+          return;
+        }
+
+        // Build lookup: route code -> staging location
+        const stgLookup = {};
+        rows.forEach((r) => {
+          const route = String(r[routeCol] || '').trim();
+          const stg = String(r[stgCol] || '').trim();
+          if (route && stg) stgLookup[route] = stg;
+        });
+
+        // Match against plan rows by route code and fill bay column
+        let matchCount = 0;
+        const matchedRoutes = new Set();
+        const newEdits = { ...cellEdits };
+        resolvedGroups.forEach((g, gIdx) => {
+          g.rows.forEach((row, rIdx) => {
+            const routeVal = getCellValue(gIdx, rIdx, 'route', row.route);
+            const stg = stgLookup[routeVal];
+            if (stg) {
+              matchCount++;
+              matchedRoutes.add(routeVal);
+              newEdits[`${gIdx}-${rIdx}-bay`] = stg;
+              if (row.id) {
+                planAmApi.updateRow(row.id, { bay: stg }).catch((err) => console.error('Failed to save STG:', err));
+              }
+            }
+          });
+        });
+
+        // Find staging entries not matched to any driver on the plan
+        const driverCol = headers.find((h) => /assigned.*da/i.test(h) || /driver/i.test(h) || /da$/i.test(h));
+        const unmatched = rows
+          .filter((r) => {
+            const route = String(r[routeCol] || '').trim();
+            return route && !matchedRoutes.has(route);
+          })
+          .map((r) => ({
+            route: String(r[routeCol] || ''),
+            driver: driverCol ? String(r[driverCol] || '') : '',
+            tid: String(r[stgCol] || ''),
+          }));
+
+        setCellEdits(newEdits);
+        setUnmatchedRoutes(unmatched);
+        setSnackbar({
+          open: true,
+          message: `Staging: matched ${matchCount} of ${rows.length} routes` + (unmatched.length > 0 ? ` · ${unmatched.length} unassigned` : ''),
+          severity: matchCount > 0 ? (unmatched.length > 0 ? 'warning' : 'success') : 'warning',
+        });
+      } catch (err) {
+        setSnackbar({ open: true, message: 'Failed to read STG file: ' + err.message, severity: 'error' });
       }
     };
     reader.readAsArrayBuffer(file);
@@ -304,13 +430,36 @@ export default function PlanAM() {
     setMenuIdx(null);
   };
 
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = async () => {
     const trimmed = newOption.trim();
-    if (trimmed && !routeOptions.includes(trimmed)) {
+    if (!trimmed) { setAddDialogOpen(false); return; }
+
+    // Parse "Group Name - HH:MM" format
+    const parts = trimmed.split(' - ');
+    const title = parts[0] || trimmed;
+    const time = parts[1] || '';
+
+    // Create group in backend
+    const dateStr = toISO(currentDate);
+    try {
+      await planAmApi.createGroup({
+        plan_date: dateStr,
+        depot,
+        title,
+        time,
+        sort_order: Date.now(),
+      });
+      await fetchPlan(); // Refresh
+    } catch (err) {
+      console.error('Failed to create group:', err);
+      alert('Failed to create group: ' + (err.message || err));
+    }
+
+    if (!routeOptions.includes(trimmed)) {
       setRouteOptions((prev) => [...prev, trimmed]);
-      if (menuIdx !== null) {
-        setHeaderOverrides((prev) => ({ ...prev, [menuIdx]: trimmed }));
-      }
+    }
+    if (menuIdx !== null) {
+      setHeaderOverrides((prev) => ({ ...prev, [menuIdx]: trimmed }));
     }
     setAddDialogOpen(false);
     setNewOption('');
@@ -324,8 +473,8 @@ export default function PlanAM() {
 
   return (
     <Box>
-      {/* Upload button */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1.5 }}>
+      {/* Action buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 1.5 }}>
         <input
           ref={fileInputRef}
           type="file"
@@ -347,6 +496,28 @@ export default function PlanAM() {
           }}
         >
           Upload Routes
+        </Button>
+        <input
+          ref={stgFileInputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          style={{ display: 'none' }}
+          onChange={handleStgUpload}
+        />
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<UploadFileIcon sx={{ fontSize: 16 }} />}
+          onClick={() => stgFileInputRef.current?.click()}
+          sx={{
+            textTransform: 'none',
+            fontSize: 12,
+            fontWeight: 600,
+            borderRadius: 2,
+            px: 2,
+          }}
+        >
+          Add STG
         </Button>
       </Box>
 
@@ -532,9 +703,22 @@ export default function PlanAM() {
           );
         })}
 
+      {/* Add Group button — always visible */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => { setAddDialogOpen(true); setNewOption(''); }}
+          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 999, px: 3 }}
+        >
+          Add Group
+        </Button>
+      </Box>
+
       {resolvedGroups.length === 0 && (
         <Paper sx={{ borderRadius: 2, textAlign: 'center', py: 6, color: 'text.secondary' }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No AM plan data for this depot</Typography>
+          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No groups yet. Click "Add Group" to get started.</Typography>
         </Paper>
       )}
 
@@ -590,10 +774,14 @@ export default function PlanAM() {
 
         {menuIdx !== null && sectionLinks[menuIdx] && (
           <MenuItem
-            onClick={() => {
+            onClick={async () => {
+              const group = groups[menuIdx];
               setSectionLinks((prev) => { const next = { ...prev }; delete next[menuIdx]; return next; });
               setMenuAnchor(null);
               setMenuIdx(null);
+              if (group?.id) {
+                try { await planAmApi.updateGroup(group.id, { linked_shift_code: null }); } catch (e) { console.error(e); }
+              }
             }}
             sx={{ fontSize: 13, py: 0.75, justifyContent: 'center', color: '#D32F2F', fontWeight: 600 }}
           >
@@ -607,10 +795,23 @@ export default function PlanAM() {
             return (
               <Box
                 key={code}
-                onClick={() => {
-                  if (menuIdx !== null) setSectionLinks((prev) => ({ ...prev, [menuIdx]: code }));
-                  setMenuAnchor(null);
-                  setMenuIdx(null);
+                onClick={async () => {
+                  if (menuIdx !== null) {
+                    const group = groups[menuIdx];
+                    setSectionLinks((prev) => ({ ...prev, [menuIdx]: code }));
+                    setMenuAnchor(null);
+                    setMenuIdx(null);
+                    // Persist to backend
+                    if (group?.id) {
+                      try {
+                        await planAmApi.updateGroup(group.id, { linked_shift_code: code });
+                        await syncFromRota();
+                      } catch (e) { console.error('Failed to link shift code:', e); }
+                    }
+                  } else {
+                    setMenuAnchor(null);
+                    setMenuIdx(null);
+                  }
                 }}
                 sx={{
                   cursor: 'pointer',
@@ -649,6 +850,41 @@ export default function PlanAM() {
       </Dialog>
 
       {/* Upload feedback */}
+      {/* Unmatched routes dialog */}
+      <Dialog open={unmatchedRoutes.length > 0} onClose={() => setUnmatchedRoutes([])} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700, pb: 0 }}>
+          Unassigned Routes ({unmatchedRoutes.length})
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+            These routes from the uploaded file were not matched to any driver on the AM Plan.
+          </Typography>
+          <Box sx={{ maxHeight: 300, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #E0E0E0', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 8px', fontWeight: 700 }}>Route Code</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700 }}>Driver / DA</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 700 }}>{unmatchedRoutes[0]?.tid?.startsWith('STG') ? 'Staging Location' : 'Transporter ID'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {unmatchedRoutes.map((r, i) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #F0F0F0' }}>
+                    <td style={{ padding: '5px 8px', fontFamily: 'monospace', fontWeight: 600 }}>{r.route}</td>
+                    <td style={{ padding: '5px 8px' }}>{r.driver}</td>
+                    <td style={{ padding: '5px 8px', fontSize: 11, color: '#666' }}>{r.tid}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUnmatchedRoutes([])} size="small" variant="contained">Close</Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snackbar.open}
         autoHideDuration={4000}

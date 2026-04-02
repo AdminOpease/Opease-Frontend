@@ -61,8 +61,8 @@ export default function Onboarding() {
   const [depot, setDepot] = React.useState('DLU2');
   const [depotEl, setDepotEl] = React.useState(null);
 
-  // Unremoved apps
-  const base = React.useMemo(() => applications.filter((a) => !a.removedAt), [applications]);
+  // Unremoved & unactivated apps
+  const base = React.useMemo(() => applications.filter((a) => !a.removedAt && !a.activatedAt), [applications]);
 
   // Phase logic — Phase 2 if Phase 1 complete OR any Phase 2 field touched
   const isPhase2 = (a) => {

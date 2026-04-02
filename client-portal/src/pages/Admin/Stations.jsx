@@ -8,164 +8,162 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import { stations as stationsApi } from '../../services/api';
 import { useAppStore } from '../../state/AppStore.jsx';
 
 export default function Stations() {
-  const { depots, setDepots } = useAppStore();
+  const { fetchStations } = useAppStore();
+  const [stationList, setStationList] = React.useState([]);
+  const [newCode, setNewCode] = React.useState('');
   const [newName, setNewName] = React.useState('');
-  const [editingIndex, setEditingIndex] = React.useState(-1);
-  const [editingValue, setEditingValue] = React.useState('');
+  const [editingId, setEditingId] = React.useState(null);
+  const [editCode, setEditCode] = React.useState('');
+  const [editName, setEditName] = React.useState('');
   const [showAdd, setShowAdd] = React.useState(false);
 
-  const startEdit = (i) => {
-    setEditingIndex(i);
-    setEditingValue(depots[i]);
+  const load = React.useCallback(async () => {
+    try {
+      const res = await stationsApi.list();
+      setStationList(res.data || []);
+    } catch (e) { console.error('Failed to load stations:', e); }
+  }, []);
+
+  React.useEffect(() => { load(); }, [load]);
+
+  const startEdit = (s) => {
+    setEditingId(s.id);
+    setEditCode(s.code);
+    setEditName(s.name);
   };
 
-  const cancelEdit = () => {
-    setEditingIndex(-1);
-    setEditingValue('');
+  const cancelEdit = () => { setEditingId(null); };
+
+  const saveEdit = async () => {
+    if (!editCode.trim() || !editName.trim()) return;
+    try {
+      await stationsApi.update(editingId, { code: editCode.trim(), name: editName.trim() });
+      await load();
+      if (fetchStations) fetchStations();
+      cancelEdit();
+    } catch (e) { console.error('Failed to update station:', e); }
   };
 
-  const saveEdit = () => {
-    const name = editingValue.trim();
-    if (!name) return;
-    const next = depots.slice();
-    next[editingIndex] = name;
-    setDepots(next);
-    cancelEdit();
+  const removeStation = async (id) => {
+    try {
+      await stationsApi.remove(id);
+      await load();
+      if (fetchStations) fetchStations();
+    } catch (e) { console.error('Failed to delete station:', e); }
   };
 
-  const removeDepot = (i) => {
-    const next = depots.filter((_, idx) => idx !== i);
-    setDepots(next);
-  };
-
-  const handleAdd = () => {
+  const handleAdd = async () => {
+    const code = (newCode || '').trim();
     const name = (newName || '').trim();
-    if (!name) return;
-    if (depots.some(d => d.toLowerCase() === name.toLowerCase())) return;
-    setDepots([...depots, name]);
-    setNewName('');
-    setShowAdd(false);
+    if (!code || !name) return;
+    try {
+      await stationsApi.create({ code, name });
+      await load();
+      if (fetchStations) fetchStations();
+      setNewCode('');
+      setNewName('');
+      setShowAdd(false);
+    } catch (e) { console.error('Failed to add station:', e); }
   };
 
-  // ---- styles (align with Drivers page) ----
   const pageSx = { mt: -9 };
-  const card = {
-    borderRadius: 2,
-    border: '1px solid',
-    borderColor: 'divider',
-    minHeight: 44,
-    display: 'flex',
-    alignItems: 'center',
-    px: 1.25,
-  };
   const th = { fontWeight: 700 };
-
-  // centered content width
   const containerSx = { maxWidth: 960, mx: 'auto', width: '100%', px: { xs: 2, sm: 0 } };
 
   return (
     <Box sx={pageSx}>
       <Box sx={containerSx}>
-        {/* Top bar: right-aligned button only */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
           <Box sx={{ flexGrow: 1 }} />
-          <Button
-            variant="contained"
-            sx={{ fontWeight: 700 }}
-            onClick={() => setShowAdd(v => !v)}
-          >
+          <Button variant="contained" sx={{ fontWeight: 700 }} onClick={() => setShowAdd(v => !v)}>
             Add Station
           </Button>
         </Box>
 
-        {/* Sub-box for adding a station (appears when button is pressed) */}
         <Collapse in={showAdd} unmountOnExit>
           <Paper variant="outlined" sx={{ borderRadius: 2, p: 2, mb: 2 }}>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={1}
-              alignItems="center"
-              sx={{ width: '100%' }}
-            >
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center" sx={{ width: '100%' }}>
               <TextField
-                placeholder="Station name"
-                fullWidth
+                placeholder="Station code (e.g. DLU2)"
                 size="small"
+                value={newCode}
+                onChange={(e) => setNewCode(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '999px' }, '& .MuiOutlinedInput-input': { py: 0.75 }, minWidth: 180 }}
+              />
+              <TextField
+                placeholder="Station name (e.g. Dartford)"
+                size="small"
+                fullWidth
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                sx={{
-                  '& .MuiOutlinedInput-root': { borderRadius: '999px' },
-                  '& .MuiOutlinedInput-input': { py: 0.75 },
-                  minWidth: 260
-                }}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '999px' }, '& .MuiOutlinedInput-input': { py: 0.75 }, minWidth: 200 }}
               />
               <Stack direction="row" spacing={1}>
-                <Button variant="contained" onClick={handleAdd} sx={{ fontWeight: 700 }}>
-                  Add
-                </Button>
-                <Button variant="text" onClick={() => { setShowAdd(false); setNewName(''); }}>
-                  Cancel
-                </Button>
+                <Button variant="contained" onClick={handleAdd} sx={{ fontWeight: 700 }}>Add</Button>
+                <Button variant="text" onClick={() => { setShowAdd(false); setNewCode(''); setNewName(''); }}>Cancel</Button>
               </Stack>
             </Stack>
           </Paper>
         </Collapse>
 
-        {/* Table styled like Drivers */}
         <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
           <Table
             size="small"
             sx={{
               '& th, & td': { px: 1.5 },
               '& thead th:first-of-type, & tbody td:first-of-type': { pl: 3 },
-              '& thead th:last-of-type,  & tbody td:last-of-type':  { pr: 3 },
+              '& thead th:last-of-type,  & tbody td:last-of-type': { pr: 3 },
             }}
           >
             <TableHead>
               <TableRow>
                 <TableCell sx={{ ...th, width: 64 }}>#</TableCell>
-                <TableCell sx={th}>Station Name</TableCell>
+                <TableCell sx={{ ...th, width: 120 }}>Code</TableCell>
+                <TableCell sx={th}>Name</TableCell>
                 <TableCell align="right" sx={{ ...th, width: 160 }}>Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {depots.map((name, i) => (
-                <TableRow key={i} hover>
+              {stationList.map((s, i) => (
+                <TableRow key={s.id} hover>
                   <TableCell>{i + 1}</TableCell>
                   <TableCell>
-                    {editingIndex === i ? (
-                      <TextField
-                        size="small"
-                        fullWidth
-                        value={editingValue}
-                        onChange={(e) => setEditingValue(e.target.value)}
-                      />
+                    {editingId === s.id ? (
+                      <TextField size="small" value={editCode} onChange={(e) => setEditCode(e.target.value)} sx={{ width: 100 }} />
                     ) : (
-                      <Typography>{name}</Typography>
+                      <Typography sx={{ fontWeight: 600 }}>{s.code}</Typography>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {editingId === s.id ? (
+                      <TextField size="small" fullWidth value={editName} onChange={(e) => setEditName(e.target.value)} />
+                    ) : (
+                      <Typography>{s.name}</Typography>
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    {editingIndex === i ? (
+                    {editingId === s.id ? (
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
                         <IconButton onClick={saveEdit} size="small"><CheckIcon /></IconButton>
                         <IconButton onClick={cancelEdit} size="small"><CloseIcon /></IconButton>
                       </Stack>
                     ) : (
                       <Stack direction="row" spacing={1} justifyContent="flex-end">
-                        <IconButton onClick={() => startEdit(i)} size="small"><EditIcon /></IconButton>
-                        <IconButton onClick={() => removeDepot(i)} size="small"><DeleteIcon /></IconButton>
+                        <IconButton onClick={() => startEdit(s)} size="small"><EditIcon /></IconButton>
+                        <IconButton onClick={() => removeStation(s.id)} size="small" color="error"><DeleteIcon /></IconButton>
                       </Stack>
                     )}
                   </TableCell>
                 </TableRow>
               ))}
-              {depots.length === 0 && (
+              {stationList.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3}>
-                    <Typography color="text.secondary">No stations yet. Click “Add Station”.</Typography>
+                  <TableCell colSpan={4}>
+                    <Typography color="text.secondary">No stations yet. Click "Add Station".</Typography>
                   </TableCell>
                 </TableRow>
               )}

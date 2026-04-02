@@ -64,22 +64,54 @@ export default function PlanPM() {
 
   // Fetch PM plan sections from API
   const [sections, setSections] = React.useState([]);
+  const generatedRef = React.useRef(new Set());
 
-  React.useEffect(() => {
+  const mapSections = (data) => (data || []).map((s) => ({
+    id: s.id,
+    section: s.title,
+    time: s.time,
+    linked_shift_code: s.linked_shift_code || '',
+    drivers: (s.drivers || []).map((d) => ({
+      name: `${d.first_name} ${d.last_name}`,
+      tid: d.transporter_id || d.amazon_id || '',
+    })),
+  }));
+
+  const fetchPlan = React.useCallback(async () => {
     const dateStr = toISO(currentDate);
     if (depot === ALL) return;
-    planPmApi.list({ date: dateStr, depot })
-      .then((res) => {
-        const apiSections = (res.data || []).map((s) => ({
-          id: s.id,
-          section: s.title,
-          time: s.time,
-          drivers: (s.drivers || []).map((d) => `${d.first_name} ${d.last_name}`).sort(),
-        }));
-        setSections(apiSections);
-      })
-      .catch((err) => console.error('Failed to fetch PM plan:', err));
+    try {
+      const res = await planPmApi.list({ date: dateStr, depot });
+      let apiSections = mapSections(res.data);
+
+      const key = `${dateStr}-${depot}`;
+      if (apiSections.length === 0 && !generatedRef.current.has(key)) {
+        generatedRef.current.add(key);
+        // Create default sections with linked_shift_code, then generate from rota
+        const defaults = [
+          { title: 'Same Day', time: '14:00', linked_shift_code: 'SD' },
+          { title: 'SWA', time: '14:30', linked_shift_code: 'SWA' },
+          { title: 'Full Routes', time: '15:00', linked_shift_code: 'W' },
+        ];
+        for (let i = 0; i < defaults.length; i++) {
+          await planPmApi.createSection({
+            plan_date: dateStr,
+            depot,
+            ...defaults[i],
+            sort_order: Date.now() + i,
+          });
+        }
+        await planPmApi.generate({ date: dateStr, depot });
+        const res2 = await planPmApi.list({ date: dateStr, depot });
+        apiSections = mapSections(res2.data);
+      }
+      setSections(apiSections);
+    } catch (err) {
+      console.error('Failed to fetch PM plan:', err);
+    }
   }, [dayOffset, depot]);
+
+  React.useEffect(() => { fetchPlan(); }, [fetchPlan]);
 
   // Route type options (pre-set + user-added)
   const [routeOptions, setRouteOptions] = React.useState(DEFAULT_ROUTE_OPTIONS);
@@ -89,17 +121,14 @@ export default function PlanPM() {
   const [menuIdx, setMenuIdx] = React.useState(null);
   const [headerOverrides, setHeaderOverrides] = React.useState({});
 
-  // Hidden sections (removed from page via dropdown delete)
+  // Hidden sections
   const [hiddenSections, setHiddenSections] = React.useState(new Set());
 
-  // Rota link: maps section index -> shift code string
-  const [sectionLinks, setSectionLinks] = React.useState({});
-
-  // Add new option dialog
+  // Add new section dialog
   const [addDialogOpen, setAddDialogOpen] = React.useState(false);
   const [newOption, setNewOption] = React.useState('');
 
-  // Use sections directly (rota linking simplified for now)
+  // Use sections directly
   const resolvedSections = sections;
 
   // Open dropdown for a section header
@@ -126,13 +155,11 @@ export default function PlanPM() {
 
   const handleDeleteOption = (option) => {
     setRouteOptions((prev) => prev.filter((o) => o !== option));
-    // Hide matching section from the page
     setHiddenSections((prev) => {
       const next = new Set(prev);
       next.add(option);
       return next;
     });
-    // Clear any overrides that used the deleted option
     setHeaderOverrides((prev) => {
       const next = { ...prev };
       Object.keys(next).forEach((k) => { if (next[k] === option) delete next[k]; });
@@ -142,16 +169,71 @@ export default function PlanPM() {
     setMenuIdx(null);
   };
 
-  const handleConfirmAdd = () => {
+  const handleConfirmAdd = async () => {
     const trimmed = newOption.trim();
-    if (trimmed && !routeOptions.includes(trimmed)) {
+    if (!trimmed) { setAddDialogOpen(false); return; }
+
+    const parts = trimmed.split(' - ');
+    const title = parts[0] || trimmed;
+    const time = parts[1] || '';
+    const dateStr = toISO(currentDate);
+
+    try {
+      await planPmApi.createSection({
+        plan_date: dateStr,
+        depot,
+        title,
+        time,
+        sort_order: Date.now(),
+      });
+      await fetchPlan();
+    } catch (err) {
+      console.error('Failed to create section:', err);
+      alert('Failed to create section: ' + (err.message || err));
+    }
+
+    if (!routeOptions.includes(trimmed)) {
       setRouteOptions((prev) => [...prev, trimmed]);
-      if (menuIdx !== null) {
-        setHeaderOverrides((prev) => ({ ...prev, [menuIdx]: trimmed }));
-      }
+    }
+    if (menuIdx !== null) {
+      setHeaderOverrides((prev) => ({ ...prev, [menuIdx]: trimmed }));
     }
     setAddDialogOpen(false);
     setNewOption('');
+    setMenuIdx(null);
+  };
+
+  // Link/unlink section to rota shift code
+  const handleLinkRota = async (code) => {
+    if (menuIdx === null) return;
+    const section = resolvedSections[menuIdx];
+    if (!section?.id) return;
+
+    try {
+      await planPmApi.updateSection(section.id, { linked_shift_code: code });
+      // Re-generate to pull drivers for the new link
+      const dateStr = toISO(currentDate);
+      await planPmApi.generate({ date: dateStr, depot });
+      await fetchPlan();
+    } catch (err) {
+      console.error('Failed to link rota:', err);
+    }
+    setMenuAnchor(null);
+    setMenuIdx(null);
+  };
+
+  const handleUnlinkRota = async () => {
+    if (menuIdx === null) return;
+    const section = resolvedSections[menuIdx];
+    if (!section?.id) return;
+
+    try {
+      await planPmApi.updateSection(section.id, { linked_shift_code: '' });
+      await fetchPlan();
+    } catch (err) {
+      console.error('Failed to unlink rota:', err);
+    }
+    setMenuAnchor(null);
     setMenuIdx(null);
   };
 
@@ -193,14 +275,27 @@ export default function PlanPM() {
         </Box>
       </Box>
 
+      {/* Add Group button */}
+      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5, mb: 0.5 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => { setAddDialogOpen(true); setNewOption(''); }}
+          sx={{ textTransform: 'none', fontWeight: 600, borderRadius: 999, px: 3 }}
+        >
+          Add Group
+        </Button>
+      </Box>
+
       {/* Sections with drivers */}
       <Box sx={{ px: 3, py: 2, textAlign: 'center' }}>
         {resolvedSections.filter((s) => !hiddenSections.has(`${s.section} - ${s.time}`)).map((s, idx) => {
-          const displayText = headerOverrides[idx] || `${s.section} - ${s.time}`;
+          const displayText = headerOverrides[idx] || `${s.section}${s.time ? ' - ' + s.time : ''}`;
 
           return (
-            <Box key={s.section} sx={{ mb: idx < resolvedSections.length - 1 ? 2.5 : 0 }}>
-              {/* Section header — click to open dropdown */}
+            <Box key={s.id} sx={{ mb: idx < resolvedSections.length - 1 ? 2.5 : 0 }}>
+              {/* Section header */}
               <Typography
                 onClick={(e) => handleHeaderClick(e, idx)}
                 sx={{
@@ -215,8 +310,8 @@ export default function PlanPM() {
                 }}
               >
                 {displayText}
-                {sectionLinks[idx] && (() => {
-                  const sc = SHIFT_CODES[sectionLinks[idx]];
+                {s.linked_shift_code && (() => {
+                  const sc = SHIFT_CODES[s.linked_shift_code];
                   return (
                     <span style={{
                       marginLeft: 6,
@@ -235,7 +330,7 @@ export default function PlanPM() {
                       backgroundColor: sc?.bg || '#eee',
                       border: `1px solid ${(sc?.color || '#333') + '30'}`,
                     }}>
-                      {sectionLinks[idx]}
+                      {s.linked_shift_code}
                     </span>
                   );
                 })()}
@@ -247,13 +342,7 @@ export default function PlanPM() {
                 </Typography>
               </Typography>
 
-              {/* Edge case messages */}
-              {s._outOfRange && (
-                <Typography sx={{ fontSize: 12, color: 'text.disabled', fontStyle: 'italic', py: 1 }}>
-                  Date outside rota range
-                </Typography>
-              )}
-              {!s._outOfRange && s._linked && s.drivers.length === 0 && (
+              {s.linked_shift_code && s.drivers.length === 0 && (
                 <Typography sx={{ fontSize: 12, color: 'text.disabled', fontStyle: 'italic', py: 1 }}>
                   No drivers with this shift code today
                 </Typography>
@@ -262,7 +351,7 @@ export default function PlanPM() {
               {/* Driver names */}
               {s.drivers.map((driver) => (
                 <Typography
-                  key={driver}
+                  key={driver.tid || driver.name}
                   sx={{
                     fontSize: 13,
                     lineHeight: 1.3,
@@ -271,7 +360,7 @@ export default function PlanPM() {
                     '&:hover': { bgcolor: '#F5F5F5', borderRadius: 1 },
                   }}
                 >
-                  {driver}
+                  {driver.name}
                 </Typography>
               ))}
             </Box>
@@ -280,7 +369,7 @@ export default function PlanPM() {
 
         {resolvedSections.length === 0 && (
           <Box sx={{ textAlign: 'center', py: 6, color: 'text.secondary' }}>
-            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No plan data for this depot</Typography>
+            <Typography sx={{ fontSize: 14, fontWeight: 600 }}>No groups yet. Click "Add Group" to get started.</Typography>
           </Box>
         )}
       </Box>
@@ -335,13 +424,9 @@ export default function PlanPM() {
           <LinkIcon sx={{ fontSize: 14, mr: 0.5 }} /> LINK TO ROTA
         </MenuItem>
 
-        {menuIdx !== null && sectionLinks[menuIdx] && (
+        {menuIdx !== null && resolvedSections[menuIdx]?.linked_shift_code && (
           <MenuItem
-            onClick={() => {
-              setSectionLinks((prev) => { const next = { ...prev }; delete next[menuIdx]; return next; });
-              setMenuAnchor(null);
-              setMenuIdx(null);
-            }}
+            onClick={handleUnlinkRota}
             sx={{ fontSize: 13, py: 0.75, justifyContent: 'center', color: '#D32F2F', fontWeight: 600 }}
           >
             <LinkOffIcon sx={{ fontSize: 16, mr: 0.5 }} /> Unlink from Rota
@@ -350,15 +435,11 @@ export default function PlanPM() {
 
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, px: 1.5, py: 1, justifyContent: 'center' }}>
           {Object.keys(SHIFT_CODES).map((code) => {
-            const isActive = menuIdx !== null && sectionLinks[menuIdx] === code;
+            const isActive = menuIdx !== null && resolvedSections[menuIdx]?.linked_shift_code === code;
             return (
               <Box
                 key={code}
-                onClick={() => {
-                  if (menuIdx !== null) setSectionLinks((prev) => ({ ...prev, [menuIdx]: code }));
-                  setMenuAnchor(null);
-                  setMenuIdx(null);
-                }}
+                onClick={() => handleLinkRota(code)}
                 sx={{
                   cursor: 'pointer',
                   borderRadius: 1,

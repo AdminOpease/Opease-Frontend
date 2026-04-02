@@ -8,6 +8,7 @@ const router = Router();
 
 router.use(authenticate);
 
+router.post('/', requireRole('admin-staff'), ctrl.create);
 router.get('/', requireRole('admin-staff'), validate(listDriversSchema), ctrl.list);
 router.get('/:id', ctrl.getById);
 router.patch('/:id', requireRole('admin-staff'), validate(updateDriverSchema), ctrl.update);

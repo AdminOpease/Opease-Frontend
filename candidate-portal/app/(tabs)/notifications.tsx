@@ -109,17 +109,67 @@ export default function NotificationsScreen() {
       .catch((err) => console.warn("Failed to fetch notifications:", err));
   }, [driver?.id]);
 
-  // Compute action tasks from application state
+  // Compute action tasks — only expiry-based (onboarding tasks handled on dashboard)
   const tasks: ActionTask[] = [];
-  if (application) {
-    if (application.contract_signing !== "Complete") {
-      tasks.push({ id: "t_contract", title: "Sign your contract", desc: "Open the Documents section to review and sign.", route: "(drawer)/documents", isComplete: false, actionLabel: "Review" });
+
+  // Expiry-based tasks from driver fields
+  if (driver) {
+    const parseDate = (val: string | number | null) => {
+      if (!val) return null;
+      const n = typeof val === "string" ? Number(val) : val;
+      if (typeof n === "number" && !isNaN(n) && n > 1e9) return new Date(n);
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+    const daysUntil = (val: string | number | null) => {
+      const d = parseDate(val);
+      if (!d) return null;
+      const now = new Date(); now.setHours(0, 0, 0, 0); d.setHours(0, 0, 0, 0);
+      return Math.round((d.getTime() - now.getTime()) / 86400000);
+    };
+
+    // Licence expiry
+    if (driver.licence_expiry) {
+      const days = daysUntil(driver.licence_expiry);
+      if (days !== null && days <= 30) {
+        tasks.push({
+          id: "t_licence_expiry", title: "Licence Expiring Soon",
+          desc: `Your driving licence expires in ${days} day${days !== 1 ? 's' : ''}. Please upload your renewed licence.`,
+          route: "(drawer)/documents" as any, isComplete: false, actionLabel: "Upload",
+        });
+      }
     }
-    if (application.bgc === "Pending") {
-      tasks.push({ id: "t_bgc", title: "Background check pending", desc: "We'll notify you once it's complete.", isComplete: false });
+
+    // DVLA check (3-month cycle)
+    if (driver.last_dvla_check) {
+      const checkDate = parseDate(driver.last_dvla_check);
+      if (checkDate) {
+        checkDate.setMonth(checkDate.getMonth() + 3);
+        const days = daysUntil(checkDate.toISOString().slice(0, 10));
+        if (days !== null && days <= 30) {
+          const hasCode = !!driver.dvla_check_code;
+          tasks.push({
+            id: "t_dvla_check", title: "DVLA Check Due",
+            desc: hasCode ? "Your DVLA check code has been submitted. Awaiting review." : "Your DVLA check is due. Please submit your DVLA Check Code.",
+            route: hasCode ? undefined : ("/submit-dvla-code" as any),
+            isComplete: hasCode, actionLabel: hasCode ? undefined : "Submit Code",
+          });
+        }
+      }
     }
-    if (!application.training_date) {
-      tasks.push({ id: "t_training", title: "Training date to be assigned", desc: "Check back soon for your training schedule.", isComplete: false });
+
+    // Right to Work expiry (Visa / Pre-Settled Status)
+    if (driver.right_to_work && !["British Passport", "Birth Certificate"].includes(driver.right_to_work) && driver.visa_expiry) {
+      const days = daysUntil(driver.visa_expiry);
+      if (days !== null && days <= 30) {
+        const hasCode = !!driver.rtw_share_code_new;
+        tasks.push({
+          id: "t_rtw_expiry", title: "Right to Work Expiring",
+          desc: hasCode ? "Your new share code has been submitted. Awaiting review." : `Your visa expires in ${days} day${days !== 1 ? 's' : ''}. Please submit your new share code.`,
+          route: hasCode ? undefined : ("/submit-rtw-code" as any),
+          isComplete: hasCode, actionLabel: hasCode ? undefined : "Submit Code",
+        });
+      }
     }
   }
   const pendingTasks = tasks.filter((t) => !t.isComplete);
@@ -161,16 +211,16 @@ export default function NotificationsScreen() {
       </Section>
 
       <Section title="Communications">
-        {communications.length > 0 ? (
+        {communications.filter((c) => !c.read).length > 0 ? (
           <FlatList
-            data={communications.sort((a, b) => b.createdAt - a.createdAt)}
+            data={communications.filter((c) => !c.read).sort((a, b) => b.createdAt - a.createdAt)}
             keyExtractor={(c) => c.id}
             renderItem={({ item }) => <CommItem item={item} onOpen={openCommunication} onToggleRead={toggleRead} />}
             ItemSeparatorComponent={() => <View style={styles.listSeparator} />}
             scrollEnabled={false}
           />
         ) : (
-          <Text style={styles.muted}>No notifications yet.</Text>
+          <Text style={styles.muted}>No new notifications.</Text>
         )}
       </Section>
     </ScrollView>

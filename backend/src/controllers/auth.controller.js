@@ -160,3 +160,86 @@ export async function me(req, res, next) {
     next(err);
   }
 }
+
+// Allowed fields for candidate self-update (first-time entry only)
+const ALLOWED_PROFILE_FIELDS = [
+  'bank_name', 'sort_code', 'account_number', 'tax_reference', 'vat_number',
+  'emergency_name', 'emergency_relationship', 'emergency_phone', 'emergency_email',
+];
+
+export async function updateProfile(req, res, next) {
+  try {
+    const email = req.user.email || req.user['cognito:username'];
+    const driver = await db('drivers').where({ email }).first();
+    if (!driver) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+
+    // Filter to only allowed fields
+    const patch = {};
+    for (const key of ALLOWED_PROFILE_FIELDS) {
+      if (req.body[key] !== undefined) {
+        patch[key] = req.body[key];
+      }
+    }
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided' });
+    }
+
+    patch.updated_at = Date.now();
+    await db('drivers').where({ id: driver.id }).update(patch);
+    const updated = await db('drivers').where({ id: driver.id }).first();
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function submitDvlaCode(req, res, next) {
+  try {
+    const email = req.user.email || req.user['cognito:username'];
+    const driver = await db('drivers').where({ email }).first();
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const { dvla_check_code } = req.body;
+    if (!dvla_check_code || !dvla_check_code.trim()) {
+      return res.status(400).json({ error: 'DVLA check code is required' });
+    }
+
+    await db('drivers').where({ id: driver.id }).update({
+      dvla_check_code: dvla_check_code.trim(),
+      dvla_code_submitted_at: new Date().toISOString(),
+      updated_at: Date.now(),
+    });
+
+    const updated = await db('drivers').where({ id: driver.id }).first();
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function submitRtwCode(req, res, next) {
+  try {
+    const email = req.user.email || req.user['cognito:username'];
+    const driver = await db('drivers').where({ email }).first();
+    if (!driver) return res.status(404).json({ error: 'Driver not found' });
+
+    const { rtw_share_code_new } = req.body;
+    if (!rtw_share_code_new || !rtw_share_code_new.trim()) {
+      return res.status(400).json({ error: 'Share code is required' });
+    }
+
+    await db('drivers').where({ id: driver.id }).update({
+      rtw_share_code_new: rtw_share_code_new.trim(),
+      rtw_code_submitted_at: new Date().toISOString(),
+      updated_at: Date.now(),
+    });
+
+    const updated = await db('drivers').where({ id: driver.id }).first();
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+}

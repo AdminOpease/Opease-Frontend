@@ -2,7 +2,7 @@ import Joi from 'joi';
 
 export const listWorkingHoursSchema = {
   query: Joi.object({
-    date: Joi.date(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
     depot: Joi.string().max(50),
     driverId: Joi.string().uuid(),
     page: Joi.number().integer().min(1),
@@ -13,7 +13,7 @@ export const listWorkingHoursSchema = {
 export const createWorkingHoursSchema = {
   body: Joi.object({
     driver_id: Joi.string().uuid(),
-    work_date: Joi.date().required(),
+    work_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50),
     vehicle: Joi.string().max(20).allow('', null),
     route_number: Joi.string().max(20).allow('', null),
@@ -43,7 +43,7 @@ export const updateWorkingHoursSchema = {
 
 export const importWorkingHoursSchema = {
   body: Joi.object({
-    work_date: Joi.date().required(),
+    work_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
     rows: Joi.array().items(
       Joi.object({

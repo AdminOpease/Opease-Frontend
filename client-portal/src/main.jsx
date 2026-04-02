@@ -26,6 +26,7 @@ const AdminDrivers = React.lazy(() => import('./pages/Admin/Drivers.jsx'))
 const AdminWorkingHours = React.lazy(() => import('./pages/Admin/WorkingHours.jsx'))
 const AdminStations = React.lazy(() => import('./pages/Admin/Stations.jsx'))
 const AdminExpiringDocs = React.lazy(() => import('./pages/Admin/ExpiringDocs.jsx'))
+const AdminChangeRequests = React.lazy(() => import('./pages/Admin/ChangeRequests.jsx'))
 
 const OpsRota = React.lazy(() => import('./pages/Operations/Rota.jsx'))
 const OpsVans = React.lazy(() => import('./pages/Operations/Vans.jsx'))
@@ -110,11 +111,12 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
                   {/* Admin */}
                   <Route path="admin/drivers" element={<AdminDrivers />} />
-                  <Route path="admin/working-hours" element={<AdminWorkingHours />} />
+                  <Route path="admin/change-requests" element={<AdminChangeRequests />} />
                   <Route path="admin/stations" element={<AdminStations />} />
                   <Route path="admin/expiring-docs" element={<AdminExpiringDocs />} />
 
                   {/* Operations */}
+                  <Route path="operations/working-hours" element={<AdminWorkingHours />} />
                   <Route path="operations/rota" element={<OpsRota />} />
                   <Route path="operations/vans" element={<OpsVans />} />
                   <Route path="operations/performance" element={<OpsPerformance />} />

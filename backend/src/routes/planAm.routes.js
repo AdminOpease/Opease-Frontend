@@ -19,5 +19,6 @@ router.post('/rows', validate(createAmRowSchema), ctrl.createRow);
 router.patch('/rows/:id', validate(updateAmRowSchema), ctrl.updateRow);
 router.delete('/rows/:id', ctrl.deleteRow);
 router.post('/import', validate(importAmPlanSchema), ctrl.importPlan);
+router.post('/generate', ctrl.generateFromRota);
 
 export default router;

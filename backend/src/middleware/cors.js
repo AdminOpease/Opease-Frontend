@@ -1,6 +1,6 @@
 import cors from 'cors';
 
-const origins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:8081')
+const origins = (process.env.CORS_ORIGINS || 'http://localhost:5173,http://localhost:5174,http://localhost:8081,http://localhost:8082')
   .split(',')
   .map((o) => o.trim());
 
