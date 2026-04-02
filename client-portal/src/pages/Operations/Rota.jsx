@@ -15,7 +15,18 @@ import {
   MenuItem,
   Popover,
   CircularProgress,
+  Button,
+  Chip,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import CloseIcon from '@mui/icons-material/Close';
+import NotesIcon from '@mui/icons-material/StickyNote2';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -23,7 +34,7 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import * as XLSX from 'xlsx';
 import { useAppStore } from '../../state/AppStore.jsx';
 import ShiftChip from '../../components/operations/ShiftChip';
-import { SHIFT_CODES, countWorkDays } from '../../data/rotaDemoData';
+import { SHIFT_CODES, WORK_CODES, countWorkDays } from '../../data/rotaDemoData';
 import { rota as rotaApi } from '../../services/api';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -61,8 +72,8 @@ const stickyHeadSx = (left) => ({
 });
 
 function formatShortDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  return `${d.getDate()}/${d.getMonth() + 1}`;
+  const [, m, d] = iso.split('-');
+  return `${parseInt(d)}/${parseInt(m)}`;
 }
 
 function formatWeekRange(week) {
@@ -74,15 +85,12 @@ function formatWeekRange(week) {
 }
 
 function buildDaysFromWeek(startDate) {
+  // Use UTC noon to avoid DST boundary shifts
   const days = [];
-  const s = new Date(startDate + 'T00:00:00');
+  const s = new Date(startDate + 'T12:00:00Z');
   for (let d = 0; d < 7; d++) {
-    const dt = new Date(s);
-    dt.setDate(s.getDate() + d);
-    const y = dt.getFullYear();
-    const m = String(dt.getMonth() + 1).padStart(2, '0');
-    const day = String(dt.getDate()).padStart(2, '0');
-    days.push(`${y}-${m}-${day}`);
+    const dt = new Date(s.getTime() + d * 86400000);
+    days.push(dt.toISOString().slice(0, 10));
   }
   return days;
 }
@@ -159,6 +167,25 @@ export default function Rota() {
   const [editValue, setEditValue] = React.useState('');
   const editRef = React.useRef(null);
 
+  // Extra column edit state (support/other)
+  const [extraEditTarget, setExtraEditTarget] = React.useState(null); // { driverId, field: 'support'|'other' }
+  const [extraEditValue, setExtraEditValue] = React.useState('');
+  const extraEditRef = React.useRef(null);
+
+  // Notes dialog state
+  const [notesTarget, setNotesTarget] = React.useState(null); // { driverId, scheduleId }
+  const [notesValue, setNotesValue] = React.useState('');
+
+  // Custom shift codes (add/remove chips)
+  const [customCodes, setCustomCodes] = React.useState({ ...SHIFT_CODES });
+  const [addChipOpen, setAddChipOpen] = React.useState(false);
+  const [newChip, setNewChip] = React.useState({ code: '', color: '#333333', bg: '#F5F5F5' });
+
+  // Availability state
+  const [availStatus, setAvailStatus] = React.useState(null); // null | { pending, submitted, total }
+  const [availLoading, setAvailLoading] = React.useState(false);
+  const [availNotes, setAvailNotes] = React.useState({}); // { driverId: { notes, status } }
+
   // ── Fetch weeks on mount ──
   React.useEffect(() => {
     rotaApi.weeks().then((res) => {
@@ -170,6 +197,10 @@ export default function Rota() {
         days: buildDaysFromWeek(w.start_date),
       }));
       setWeeks(apiWeeks);
+      // Default to current week
+      const today = new Date().toISOString().slice(0, 10);
+      const currentIdx = apiWeeks.findIndex((w) => w.startDate <= today && w.endDate >= today);
+      if (currentIdx >= 0) setWeekIdx(currentIdx);
       setLoadingWeeks(false);
     }).catch((err) => {
       console.error('Failed to fetch weeks:', err);
@@ -194,6 +225,57 @@ export default function Rota() {
     });
   }, [week?.id, depot]);
 
+  // ── Fetch availability status when week/depot changes ──
+  const fetchAvailStatus = React.useCallback(() => {
+    if (!week || depot === ALL) { setAvailStatus(null); setAvailNotes({}); return; }
+    rotaApi.getAvailability({ weekId: week.id, depot }).then((res) => {
+      const rows = res.data || [];
+      if (rows.length === 0) { setAvailStatus(null); setAvailNotes({}); return; }
+      const pending = rows.filter((r) => r.status === 'pending').length;
+      const submitted = rows.filter((r) => r.status === 'submitted').length;
+      setAvailStatus({ pending, submitted, total: rows.length });
+      // Store notes per driver
+      const notesMap = {};
+      for (const r of rows) {
+        notesMap[r.driver_id] = { notes: r.notes || '', status: r.status };
+      }
+      setAvailNotes(notesMap);
+    }).catch(() => { setAvailStatus(null); setAvailNotes({}); });
+  }, [week?.id, depot]);
+
+  React.useEffect(() => { fetchAvailStatus(); }, [fetchAvailStatus]);
+
+  const handleRequestAvailability = async () => {
+    if (!week || depot === ALL) return;
+    setAvailLoading(true);
+    try {
+      const res = await rotaApi.requestAvailability({ weekId: week.id, depot });
+      alert(`Availability requested from ${res.total} drivers (${res.created} new, ${res.alreadyRequested} already sent)`);
+      fetchAvailStatus();
+    } catch (err) {
+      alert('Failed: ' + (err.message || err));
+    }
+    setAvailLoading(false);
+  };
+
+  const handleApplyAvailability = async () => {
+    if (!week || depot === ALL) return;
+    setAvailLoading(true);
+    try {
+      const res = await rotaApi.applyAvailability({ weekId: week.id, depot });
+      alert(`Applied availability for ${res.applied} drivers`);
+      // Refresh the schedule
+      const params = { weekId: week.id };
+      if (depot !== ALL) params.depot = depot;
+      const schedRes = await rotaApi.schedule(params);
+      setScheduleRows(schedRes.data || []);
+      fetchAvailStatus();
+    } catch (err) {
+      alert('Failed: ' + (err.message || err));
+    }
+    setAvailLoading(false);
+  };
+
   // ── Transform schedule into drivers + schedule map ──
   const drivers = React.useMemo(() => {
     const seen = new Map();
@@ -202,7 +284,7 @@ export default function Rota() {
         seen.set(row.driver_id, {
           id: row.driver_id,
           name: `${row.first_name} ${row.last_name}`,
-          amazonId: row.amazon_id || '',
+          amazonId: row.transporter_id || row.amazon_id || '',
           depot: row.depot,
         });
       }
@@ -217,6 +299,12 @@ export default function Rota() {
       map[row.driver_id] = {
         id: row.id,
         shifts: DAY_COLS.map((d) => row[d] || ''),
+        support: row.support || '',
+        other: row.other || '',
+        notes: row.notes || '',
+        _transferred_in: row._transferred_in || false,
+        _transfer_days: row._transfer_days || {},
+        _outgoing_transfers: row._outgoing_transfers || {},
       };
     }
     return map;
@@ -271,21 +359,58 @@ export default function Rota() {
     if (!entry) return;
 
     const trimmed = editValue.trim();
-    const code = SHIFT_CODES[trimmed] ? trimmed : (trimmed === '' ? '' : trimmed.toUpperCase());
+    const code = trimmed === '' ? '' : trimmed.toUpperCase();
     const dayCol = DAY_COLS[dayIndex];
+    const isStationCode = depots.includes(code);
+    const isTransferredIn = Boolean(entry._transferred_in);
 
     // Optimistic update
-    setScheduleRows((prev) =>
-      prev.map((row) =>
-        row.id === entry.id ? { ...row, [dayCol]: SHIFT_CODES[code] ? code : '' } : row
-      )
-    );
+    if (isTransferredIn) {
+      // For transferred-in drivers, update the _transfer_days assigned_code
+      setScheduleRows((prev) =>
+        prev.map((row) => {
+          if (row.id !== entry.id) return row;
+          const updatedTransfers = { ...row._transfer_days };
+          if (updatedTransfers[dayCol]) {
+            updatedTransfers[dayCol] = { ...updatedTransfers[dayCol], assigned_code: code };
+          }
+          return { ...row, _transfer_days: updatedTransfers };
+        })
+      );
+    } else {
+      setScheduleRows((prev) =>
+        prev.map((row) =>
+          row.id === entry.id ? { ...row, [dayCol]: code } : row
+        )
+      );
+    }
     setEditTarget(null);
     setEditValue('');
 
-    // Persist to API
     try {
-      await rotaApi.updateShift(entry.id, { [dayCol]: code || null });
+      if (isTransferredIn) {
+        // Editing a transferred-in driver's cell → update the transfer's assigned_code
+        await rotaApi.updateTransferAssignment({ schedule_id: entry.id, day_col: dayCol, assigned_code: code });
+      } else {
+        // Normal edit
+        await rotaApi.updateShift(entry.id, { [dayCol]: code || null });
+
+        // If it's a station code → create transfer
+        if (isStationCode && code !== depot) {
+          await rotaApi.createTransfer({
+            schedule_id: entry.id,
+            day_col: dayCol,
+            from_depot: depot,
+            to_depot: code,
+          });
+        } else {
+          // If it was previously a station code, delete the transfer
+          const prevCode = entry.shifts[dayIndex];
+          if (depots.includes(prevCode)) {
+            await rotaApi.deleteTransfer({ schedule_id: entry.id, day_col: dayCol }).catch(() => {});
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to save shift:', err);
     }
@@ -300,9 +425,64 @@ export default function Rota() {
     }
   };
 
+  // Extra column (support/other) edit handlers
+  const handleExtraClick = (driverId, field, currentVal) => {
+    setExtraEditTarget({ driverId, field });
+    setExtraEditValue(currentVal || '');
+    setTimeout(() => extraEditRef.current?.focus(), 0);
+  };
+
+  const handleExtraCommit = async () => {
+    if (!extraEditTarget) return;
+    const { driverId, field } = extraEditTarget;
+    const entry = scheduleMap[driverId];
+    if (!entry) return;
+
+    const code = extraEditValue.trim().toUpperCase();
+    setScheduleRows((prev) =>
+      prev.map((row) => row.id === entry.id ? { ...row, [field]: code } : row)
+    );
+    setExtraEditTarget(null);
+    setExtraEditValue('');
+
+    try {
+      await rotaApi.updateShift(entry.id, { [field]: code || '' });
+    } catch (err) {
+      console.error(`Failed to save ${field}:`, err);
+    }
+  };
+
+  const handleExtraKeyDown = (e) => {
+    if (e.key === 'Enter') handleExtraCommit();
+    else if (e.key === 'Escape') { setExtraEditTarget(null); setExtraEditValue(''); }
+  };
+
+  // Notes dialog handlers
+  const handleNotesOpen = (driverId) => {
+    const entry = scheduleMap[driverId];
+    if (!entry) return;
+    setNotesTarget({ driverId, scheduleId: entry.id });
+    setNotesValue(entry.notes || '');
+  };
+
+  const handleNotesSave = async () => {
+    if (!notesTarget) return;
+    setScheduleRows((prev) =>
+      prev.map((row) => row.id === notesTarget.scheduleId ? { ...row, notes: notesValue } : row)
+    );
+    setNotesTarget(null);
+    try {
+      await rotaApi.updateShift(notesTarget.scheduleId, { notes: notesValue });
+    } catch (err) {
+      console.error('Failed to save notes:', err);
+    }
+  };
+
   const handleExportExcel = () => {
     if (!week) return;
-    const rows = filteredDrivers.map((driver, idx) => {
+    // Exclude transferred-in drivers from this station's export
+    const exportDrivers = filteredDrivers.filter((d) => !scheduleMap[d.id]?._transferred_in);
+    const rows = exportDrivers.map((driver, idx) => {
       const entry = scheduleMap[driver.id];
       const shifts = entry ? entry.shifts : Array(7).fill('');
       const row = {
@@ -310,10 +490,20 @@ export default function Rota() {
         Name: driver.name,
         'Transporter ID': driver.amazonId,
       };
+      const outgoing = entry ? entry._outgoing_transfers : {};
       week.days.forEach((day, i) => {
-        row[`${DAY_LABELS[i]} ${formatShortDate(day)}`] = shifts[i] || '';
+        const dayCol = DAY_COLS[i];
+        let cellVal = shifts[i] || '';
+        // For outgoing transfers: show the assigned_code from destination station if available
+        if (outgoing[dayCol]?.assigned_code) {
+          cellVal = outgoing[dayCol].assigned_code;
+        }
+        row[`${DAY_LABELS[i]} ${formatShortDate(day)}`] = cellVal;
       });
       row.Total = countWorkDays(shifts);
+      row.Support = entry ? entry.support : '';
+      row.Other = entry ? entry.other : '';
+      row.Notes = entry ? entry.notes : '';
       return row;
     });
 
@@ -464,6 +654,28 @@ export default function Rota() {
         </Box>
       </Box>
 
+      {/* ── Availability actions ─────────────────────────────── */}
+      {depot !== ALL && week && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <Button
+            variant="contained"
+            size="small"
+            disabled={availLoading}
+            onClick={handleRequestAvailability}
+            sx={{ borderRadius: 999, textTransform: 'none', fontWeight: 600, fontSize: 12, bgcolor: 'primary.main' }}
+          >
+            {availLoading ? '...' : 'Request Availability'}
+          </Button>
+
+          {availStatus && (
+            <Box sx={{ display: 'flex', gap: 0.5, ml: 1 }}>
+              <Chip label={`${availStatus.submitted} submitted`} size="small" sx={{ fontSize: 11, bgcolor: '#DCFCE7', color: '#065F46', fontWeight: 600 }} />
+              <Chip label={`${availStatus.pending} pending`} size="small" sx={{ fontSize: 11, bgcolor: '#FEF3C7', color: '#92400E', fontWeight: 600 }} />
+            </Box>
+          )}
+        </Box>
+      )}
+
       {/* ── Schedule table ─────────────────────────────────────── */}
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>
         {loadingSchedule ? (
@@ -483,6 +695,9 @@ export default function Rota() {
                     </TableCell>
                   ))}
                   <TableCell align="center" sx={{ ...headCellSx, minWidth: 44 }}>Total</TableCell>
+                  <TableCell align="center" sx={{ ...headCellSx, minWidth: 55 }}>Support</TableCell>
+                  <TableCell align="center" sx={{ ...headCellSx, minWidth: 55 }}>Other</TableCell>
+                  <TableCell align="center" sx={{ ...headCellSx, minWidth: 60 }}>Notes</TableCell>
                 </TableRow>
 
                 {/* ── Filter row ──────────────────────────────────── */}
@@ -505,6 +720,9 @@ export default function Rota() {
                     </TableCell>
                   ))}
                   <TableCell sx={{ ...cellSx, p: 0.5 }} />
+                  <TableCell sx={{ ...cellSx, p: 0.5 }} />
+                  <TableCell sx={{ ...cellSx, p: 0.5 }} />
+                  <TableCell sx={{ ...cellSx, p: 0.5 }} />
                 </TableRow>
               </TableHead>
 
@@ -512,26 +730,60 @@ export default function Rota() {
                 {filteredDrivers.map((driver, idx) => {
                   const entry = scheduleMap[driver.id];
                   const shifts = entry ? entry.shifts : Array(7).fill('');
-                  const total = countWorkDays(shifts);
+                  const total = entry?._transferred_in
+                    ? Object.values(entry._transfer_days || {}).filter((t) => WORK_CODES.has(t.assigned_code)).length
+                    : countWorkDays(shifts);
 
                   return (
-                    <TableRow key={driver.id} hover sx={{ '&:nth-of-type(even)': { bgcolor: '#FAFAFA' } }}>
+                    <TableRow key={driver.id} hover sx={{
+                      '&:nth-of-type(even)': { bgcolor: '#FAFAFA' },
+                      ...(entry?._transferred_in && { bgcolor: '#FFF8E1 !important' }),
+                    }}>
                       <TableCell sx={{ ...cellSx, fontWeight: 600, textAlign: 'center', ...stickyCellSx(0, 1) }}>
                         {idx + 1}
                       </TableCell>
-                      <TableCell sx={{ ...cellSx, fontWeight: 600, ...stickyCellSx(36) }}>{driver.name}</TableCell>
+                      <TableCell sx={{ ...cellSx, fontWeight: 600, ...stickyCellSx(36) }}>
+                        {driver.name}
+                        {entry?._transferred_in && (
+                          <span style={{
+                            marginLeft: 4, fontSize: 9, fontWeight: 700, color: '#E65100',
+                            background: '#FFF3E0', padding: '1px 4px', borderRadius: 3,
+                            verticalAlign: 'middle',
+                          }}>
+                            ↗ {driver.depot}
+                          </span>
+                        )}
+                        {availNotes[driver.id]?.notes ? (
+                          <Tooltip title={availNotes[driver.id].notes} arrow placement="right">
+                            <span style={{ marginLeft: 4, cursor: 'help', fontSize: 12, opacity: 0.6 }}>💬</span>
+                          </Tooltip>
+                        ) : null}
+                      </TableCell>
                       <TableCell sx={{ ...cellSx, fontSize: 10, color: 'text.secondary', ...stickyCellSx(166) }}>
                         {driver.amazonId}
                       </TableCell>
 
                       {shifts.map((code, d) => {
                         const isEditing = editTarget?.driverId === driver.id && editTarget?.dayIndex === d;
+                        const dayCol = DAY_COLS[d];
+                        const isTransferDay = entry?._transferred_in && entry._transfer_days?.[dayCol];
+                        const isNonTransferDay = entry?._transferred_in && !isTransferDay;
+                        // For transferred-in drivers on their transfer day, show assigned_code
+                        const displayCode = isTransferDay ? (entry._transfer_days[dayCol].assigned_code || '') : code;
+                        // For outgoing transfers, show station code as chip but track assigned_code for Excel
                         return (
                           <TableCell
                             key={d}
                             align="center"
-                            sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25 }}
-                            onClick={() => !isEditing && handleCellClick(driver.id, d, code)}
+                            sx={{
+                              ...cellSx,
+                              cursor: isNonTransferDay ? 'default' : 'pointer',
+                              '&:hover': isNonTransferDay ? {} : { bgcolor: '#F0F0F0' },
+                              p: 0.25,
+                              ...(isNonTransferDay && { bgcolor: '#F5F5F5', opacity: 0.3 }),
+                              ...(isTransferDay && { bgcolor: '#FFF8E1' }),
+                            }}
+                            onClick={() => !isEditing && !isNonTransferDay && handleCellClick(driver.id, d, displayCode)}
                           >
                             {isEditing ? (
                               <ClickAwayListener onClickAway={handleEditCommit}>
@@ -546,8 +798,10 @@ export default function Rota() {
                                   }}
                                 />
                               </ClickAwayListener>
-                            ) : code ? (
-                              <ShiftChip code={code} />
+                            ) : isNonTransferDay ? (
+                              <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
+                            ) : displayCode ? (
+                              <ShiftChip code={displayCode} />
                             ) : (
                               <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
                             )}
@@ -556,13 +810,95 @@ export default function Rota() {
                       })}
 
                       <TableCell align="center" sx={{ ...cellSx, fontWeight: 700, fontSize: 12 }}>{total}</TableCell>
+
+                      {/* Support cell */}
+                      {(() => {
+                        const val = entry?.support || '';
+                        const isEditing = extraEditTarget?.driverId === driver.id && extraEditTarget?.field === 'support';
+                        return (
+                          <TableCell
+                            align="center"
+                            sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25 }}
+                            onClick={() => !isEditing && handleExtraClick(driver.id, 'support', val)}
+                          >
+                            {isEditing ? (
+                              <ClickAwayListener onClickAway={handleExtraCommit}>
+                                <input
+                                  ref={extraEditRef}
+                                  value={extraEditValue}
+                                  onChange={(e) => setExtraEditValue(e.target.value.toUpperCase())}
+                                  onKeyDown={handleExtraKeyDown}
+                                  style={{
+                                    width: 40, height: 22, border: '1.5px solid #2E4C1E', borderRadius: 4,
+                                    textAlign: 'center', fontSize: 11, fontWeight: 600, outline: 'none', padding: 0, fontFamily: 'inherit',
+                                  }}
+                                />
+                              </ClickAwayListener>
+                            ) : val ? (
+                              customCodes[val] ? <ShiftChip code={val} /> : <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{val}</Typography>
+                            ) : (
+                              <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
+                            )}
+                          </TableCell>
+                        );
+                      })()}
+
+                      {/* Other cell */}
+                      {(() => {
+                        const val = entry?.other || '';
+                        const isEditing = extraEditTarget?.driverId === driver.id && extraEditTarget?.field === 'other';
+                        return (
+                          <TableCell
+                            align="center"
+                            sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25 }}
+                            onClick={() => !isEditing && handleExtraClick(driver.id, 'other', val)}
+                          >
+                            {isEditing ? (
+                              <ClickAwayListener onClickAway={handleExtraCommit}>
+                                <input
+                                  ref={extraEditRef}
+                                  value={extraEditValue}
+                                  onChange={(e) => setExtraEditValue(e.target.value.toUpperCase())}
+                                  onKeyDown={handleExtraKeyDown}
+                                  style={{
+                                    width: 40, height: 22, border: '1.5px solid #2E4C1E', borderRadius: 4,
+                                    textAlign: 'center', fontSize: 11, fontWeight: 600, outline: 'none', padding: 0, fontFamily: 'inherit',
+                                  }}
+                                />
+                              </ClickAwayListener>
+                            ) : val ? (
+                              customCodes[val] ? <ShiftChip code={val} /> : <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{val}</Typography>
+                            ) : (
+                              <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
+                            )}
+                          </TableCell>
+                        );
+                      })()}
+
+                      {/* Notes cell */}
+                      <TableCell
+                        align="center"
+                        sx={{ ...cellSx, cursor: 'pointer', '&:hover': { bgcolor: '#F0F0F0' }, p: 0.25, maxWidth: 80 }}
+                        onClick={() => handleNotesOpen(driver.id)}
+                      >
+                        {entry?.notes ? (
+                          <Tooltip title={entry.notes} arrow>
+                            <Typography sx={{ fontSize: 11, color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 70 }}>
+                              <NotesIcon sx={{ fontSize: 12, verticalAlign: 'middle', mr: 0.3 }} />
+                              {entry.notes.length > 12 ? entry.notes.slice(0, 12) + '...' : entry.notes}
+                            </Typography>
+                          </Tooltip>
+                        ) : (
+                          <Box sx={{ width: 32, height: 22, display: 'inline-block' }} />
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
 
                 {filteredDrivers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={11} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: 13 }}>
+                    <TableCell colSpan={14} align="center" sx={{ py: 4, color: 'text.secondary', fontSize: 13 }}>
                       No drivers match the selected filter.
                     </TableCell>
                   </TableRow>
@@ -573,12 +909,140 @@ export default function Rota() {
         )}
       </Paper>
 
-      {/* ── Legend ──────────────────────────────────────────────── */}
+      {/* ── Legend with add/remove ─────────────────────────────── */}
       <Box sx={{ mt: 2, display: 'flex', flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
-        {Object.keys(SHIFT_CODES).map((code) => (
-          <ShiftChip key={code} code={code} />
+        {Object.keys(customCodes).map((code) => (
+          <Box
+            key={code}
+            sx={{
+              position: 'relative',
+              display: 'inline-flex',
+              '& .chip-remove': { opacity: 0, transition: 'opacity 0.15s' },
+              '&:hover .chip-remove': { opacity: 1 },
+            }}
+          >
+            <ShiftChip code={code} />
+            <IconButton
+              className="chip-remove"
+              size="small"
+              onClick={() => setCustomCodes((prev) => {
+                const next = { ...prev };
+                delete next[code];
+                return next;
+              })}
+              sx={{
+                position: 'absolute',
+                top: -6,
+                right: -6,
+                p: 0,
+                width: 16,
+                height: 16,
+                bgcolor: '#D32F2F',
+                color: 'white',
+                '&:hover': { bgcolor: '#B71C1C' },
+              }}
+            >
+              <CloseIcon sx={{ fontSize: 10 }} />
+            </IconButton>
+          </Box>
         ))}
+        <IconButton
+          size="small"
+          onClick={() => { setAddChipOpen(true); setNewChip({ code: '', color: '#333333', bg: '#F5F5F5' }); }}
+          sx={{ width: 28, height: 28, border: '1px dashed #BDBDBD', borderRadius: 1, '&:hover': { bgcolor: '#F5F5F5' } }}
+        >
+          <AddIcon sx={{ fontSize: 16 }} />
+        </IconButton>
       </Box>
+
+      {/* ── Notes Dialog ─────────────────────────────────────────── */}
+      <Dialog open={Boolean(notesTarget)} onClose={() => setNotesTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>Driver Notes</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            fullWidth
+            multiline
+            minRows={4}
+            maxRows={10}
+            value={notesValue}
+            onChange={(e) => setNotesValue(e.target.value)}
+            placeholder="Add notes for this driver..."
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNotesTarget(null)} size="small">Cancel</Button>
+          <Button onClick={handleNotesSave} variant="contained" size="small">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Add Chip Dialog ──────────────────────────────────────── */}
+      <Dialog open={addChipOpen} onClose={() => setAddChipOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>Add Shift Code</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: '12px !important' }}>
+          <TextField
+            size="small"
+            label="Code"
+            placeholder="e.g. TR"
+            value={newChip.code}
+            onChange={(e) => setNewChip((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+          />
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <TextField
+              size="small"
+              label="Text Color"
+              type="color"
+              value={newChip.color}
+              onChange={(e) => setNewChip((p) => ({ ...p, color: e.target.value }))}
+              sx={{ flex: 1 }}
+              InputProps={{ sx: { height: 40 } }}
+            />
+            <TextField
+              size="small"
+              label="Background"
+              type="color"
+              value={newChip.bg}
+              onChange={(e) => setNewChip((p) => ({ ...p, bg: e.target.value }))}
+              sx={{ flex: 1 }}
+              InputProps={{ sx: { height: 40 } }}
+            />
+          </Box>
+          {newChip.code && (
+            <Box sx={{ mt: 0.5 }}>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>Preview:</Typography>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                minWidth: 32, height: 22, padding: '0 6px', borderRadius: 4,
+                fontSize: 11, fontWeight: 600, lineHeight: 1,
+                color: newChip.color, backgroundColor: newChip.bg,
+                border: `1px solid ${newChip.color}30`,
+              }}>
+                {newChip.code}
+              </span>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddChipOpen(false)} size="small">Cancel</Button>
+          <Button
+            onClick={() => {
+              if (newChip.code) {
+                setCustomCodes((prev) => ({
+                  ...prev,
+                  [newChip.code]: { color: newChip.color, bg: newChip.bg },
+                }));
+                setAddChipOpen(false);
+              }
+            }}
+            variant="contained"
+            size="small"
+            disabled={!newChip.code.trim()}
+          >
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

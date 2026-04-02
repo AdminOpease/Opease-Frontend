@@ -1,8 +1,6 @@
 // client-portal/src/state/AppStore.jsx
 import * as React from 'react';
-import { drivers as driversApi, applications as appsApi, documents as docsApi } from '../services/api';
-
-const DEPOTS = ['DLU2', 'Heathrow', 'Greenwich', 'Battersea'];
+import { drivers as driversApi, applications as appsApi, documents as docsApi, changeRequestsApi, stations as stationsApi } from '../services/api';
 
 const AppStoreContext = React.createContext(null);
 
@@ -11,6 +9,8 @@ export function AppStoreProvider({ children }) {
   const [documents, setDocuments] = React.useState([]);
   const [applications, setApplications] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [changeRequests, setChangeRequests] = React.useState([]);
+  const [depots, setDepots] = React.useState([]);
 
   // ── Fetch data from API on mount ──
   const fetchDrivers = React.useCallback(async () => {
@@ -27,6 +27,7 @@ export function AppStoreProvider({ children }) {
           status: d.status,
           depot: d.depot,
           amazon_id: d.amazon_id,
+          transporter_id: d.transporter_id,
         }))
       );
     } catch (err) {
@@ -98,17 +99,46 @@ export function AppStoreProvider({ children }) {
     }
   }, []);
 
+  const fetchStations = React.useCallback(async () => {
+    try {
+      const res = await stationsApi.list();
+      setDepots((res.data || []).map((s) => s.code || s.name));
+    } catch (err) {
+      console.error('Failed to fetch stations:', err);
+    }
+  }, []);
+
   React.useEffect(() => {
-    Promise.all([fetchDrivers(), fetchApplications(), fetchDocuments()])
+    Promise.all([fetchDrivers(), fetchApplications(), fetchDocuments(), fetchStations()])
       .finally(() => setLoading(false));
-  }, [fetchDrivers, fetchApplications, fetchDocuments]);
+  }, [fetchDrivers, fetchApplications, fetchDocuments, fetchStations]);
 
   // Poll all data every 5s for near-instant updates across portals
   React.useEffect(() => {
-    const refresh = () => { fetchDrivers(); fetchApplications(); fetchDocuments(); };
+    const refresh = () => { fetchDrivers(); fetchApplications(); fetchDocuments(); fetchStations(); };
     const id = setInterval(refresh, 5_000);
     return () => clearInterval(id);
-  }, [fetchDrivers, fetchApplications, fetchDocuments]);
+  }, [fetchDrivers, fetchApplications, fetchDocuments, fetchStations]);
+
+  // ── Change Requests ──
+  const fetchChangeRequests = React.useCallback(async () => {
+    try {
+      const res = await changeRequestsApi.list({ limit: 200 });
+      setChangeRequests(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch change requests:', err);
+    }
+  }, []);
+
+  const updateChangeRequest = React.useCallback(async (id, status) => {
+    try {
+      await changeRequestsApi.update(id, { status });
+      // Backend auto-applies approved changes to driver profile
+      await Promise.all([fetchChangeRequests(), fetchDrivers()]);
+    } catch (err) {
+      console.error('Failed to update change request:', err);
+    }
+  }, [fetchChangeRequests, fetchDrivers]);
 
   // ── Phase computation ──
   // An app is in Phase 2 once it has been Proceeded (bgc moved from its original 'Pending' default).
@@ -256,7 +286,8 @@ export function AppStoreProvider({ children }) {
 
   const value = React.useMemo(
     () => ({
-      depots: DEPOTS,
+      depots,
+      fetchStations,
       loading,
 
       drivers,
@@ -275,8 +306,12 @@ export function AppStoreProvider({ children }) {
       documents,
       setDocuments,
       fetchDocuments,
+
+      changeRequests,
+      fetchChangeRequests,
+      updateChangeRequest,
     }),
-    [drivers, documents, applications, metrics, loading]
+    [drivers, documents, applications, changeRequests, metrics, loading, depots]
   );
 
   return (

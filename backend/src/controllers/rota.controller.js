@@ -1,3 +1,4 @@
+import { v4 as uuid } from 'uuid';
 import db from '../config/database.js';
 import { NotFoundError } from '../utils/errors.js';
 import { updateAndReturn, insertAndReturn } from '../utils/dbHelpers.js';
@@ -18,7 +19,7 @@ export async function getSchedule(req, res, next) {
       .join('drivers as d', 'rs.driver_id', 'd.id')
       .select(
         'rs.*',
-        'd.first_name', 'd.last_name', 'd.amazon_id',
+        'd.first_name', 'd.last_name', 'd.amazon_id', 'd.transporter_id',
         'd.depot', 'd.status as driver_status', 'd.phone'
       )
       .orderBy('d.last_name', 'asc');
@@ -26,7 +27,63 @@ export async function getSchedule(req, res, next) {
     if (weekId) query = query.where('rs.week_id', weekId);
     if (depot && depot !== 'All Depots') query = query.where('d.depot', depot);
 
-    const data = await query;
+    let data = await query;
+
+    // Also fetch drivers transferred INTO this depot for this week
+    if (weekId && depot && depot !== 'All Depots') {
+      const transfers = await db('rota_transfers as rt')
+        .join('rota_schedule as rs', 'rt.schedule_id', 'rs.id')
+        .join('drivers as d', 'rs.driver_id', 'd.id')
+        .select(
+          'rs.*',
+          'd.first_name', 'd.last_name', 'd.amazon_id', 'd.transporter_id',
+          'd.depot', 'd.status as driver_status', 'd.phone',
+          'rt.day_col', 'rt.from_depot', 'rt.to_depot', 'rt.assigned_code'
+        )
+        .where('rt.to_depot', depot)
+        .where('rs.week_id', weekId);
+
+      // Group transfers by driver schedule ID
+      const transfersBySchedule = {};
+      for (const t of transfers) {
+        if (!transfersBySchedule[t.id]) transfersBySchedule[t.id] = { ...t, _transfers: {} };
+        transfersBySchedule[t.id]._transfers[t.day_col] = {
+          from_depot: t.from_depot,
+          assigned_code: t.assigned_code,
+        };
+      }
+
+      // Add transferred drivers (if not already in the list)
+      const existingIds = new Set(data.map((r) => r.id));
+      for (const entry of Object.values(transfersBySchedule)) {
+        if (!existingIds.has(entry.id)) {
+          entry._transferred_in = true;
+          entry._transfer_days = entry._transfers;
+          delete entry._transfers;
+          data.push(entry);
+        }
+      }
+    }
+
+    // Fetch outgoing transfers for this week+depot (so origin can see assigned_code)
+    if (weekId && depot && depot !== 'All Depots') {
+      const outgoing = await db('rota_transfers as rt')
+        .join('rota_schedule as rs', 'rt.schedule_id', 'rs.id')
+        .select('rt.schedule_id', 'rt.day_col', 'rt.to_depot', 'rt.assigned_code')
+        .where('rt.from_depot', depot)
+        .where('rs.week_id', weekId);
+
+      const outMap = {};
+      for (const o of outgoing) {
+        if (!outMap[o.schedule_id]) outMap[o.schedule_id] = {};
+        outMap[o.schedule_id][o.day_col] = { to_depot: o.to_depot, assigned_code: o.assigned_code };
+      }
+
+      for (const row of data) {
+        if (outMap[row.id]) row._outgoing_transfers = outMap[row.id];
+      }
+    }
+
     res.json({ data });
   } catch (err) {
     next(err);
@@ -102,6 +159,47 @@ export async function getCapacity(req, res, next) {
     }
 
     res.json({ data: capacity });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ── Transfer endpoints ──────────────────────────────────────────
+
+export async function createTransfer(req, res, next) {
+  try {
+    const { schedule_id, day_col, from_depot, to_depot } = req.body;
+    const existing = await db('rota_transfers').where({ schedule_id, day_col }).first();
+
+    let transfer;
+    if (existing) {
+      transfer = await updateAndReturn('rota_transfers', { id: existing.id }, { from_depot, to_depot });
+    } else {
+      transfer = await insertAndReturn('rota_transfers', { schedule_id, day_col, from_depot, to_depot, assigned_code: '' });
+    }
+    res.status(201).json(transfer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteTransfer(req, res, next) {
+  try {
+    const { schedule_id, day_col } = req.body;
+    await db('rota_transfers').where({ schedule_id, day_col }).del();
+    res.json({ deleted: true });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateTransferAssignment(req, res, next) {
+  try {
+    const { schedule_id, day_col, assigned_code } = req.body;
+    const existing = await db('rota_transfers').where({ schedule_id, day_col }).first();
+    if (!existing) throw new NotFoundError('Transfer');
+    const transfer = await updateAndReturn('rota_transfers', { id: existing.id }, { assigned_code });
+    res.json(transfer);
   } catch (err) {
     next(err);
   }

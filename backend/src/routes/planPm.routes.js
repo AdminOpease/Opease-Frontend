@@ -16,5 +16,6 @@ router.patch('/sections/:id', validate(updatePmSectionSchema), ctrl.updateSectio
 router.delete('/sections/:id', ctrl.deleteSection);
 router.post('/sections/:id/drivers', validate(addPmDriverSchema), ctrl.addDriver);
 router.delete('/sections/:sectionId/drivers/:driverId', ctrl.removeDriver);
+router.post('/generate', ctrl.generateFromRota);
 
 export default router;

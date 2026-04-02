@@ -11,6 +11,7 @@ type Driver = {
   status: string;
   depot: string | null;
   amazon_id: string | null;
+  transporter_id: string | null;
   cognito_sub: string | null;
   licence_number: string | null;
   licence_expiry: string | null;
@@ -36,6 +37,12 @@ type Driver = {
   account_number: string | null;
   tax_reference: string | null;
   vat_number: string | null;
+  last_dvla_check: string | null;
+  visa_expiry: string | null;
+  dvla_check_code: string | null;
+  dvla_code_submitted_at: string | null;
+  rtw_share_code_new: string | null;
+  rtw_code_submitted_at: string | null;
 };
 
 type Application = {

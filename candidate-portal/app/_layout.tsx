@@ -217,6 +217,22 @@ function AuthenticatedApp() {
         }}
       />
 
+      <Drawer.Screen
+        name="submit-dvla-code"
+        options={{
+          drawerItemStyle: { display: "none" },
+          title: "Submit DVLA Code",
+        }}
+      />
+
+      <Drawer.Screen
+        name="submit-rtw-code"
+        options={{
+          drawerItemStyle: { display: "none" },
+          title: "Submit Share Code",
+        }}
+      />
+
       {/* Hide non-route files that Expo Router picks up */}
       <Drawer.Screen name="context/AuthContext" options={{ drawerItemStyle: { display: "none" } }} />
       <Drawer.Screen name="context/ApplicationContext" options={{ drawerItemStyle: { display: "none" } }} />

@@ -1,10 +1,10 @@
 // app/request-change.tsx
 import React, { useMemo, useState } from "react";
-import { ScrollView, View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { ScrollView, View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import colors from "../theme/colors";
 import { useAuth } from "./context/AuthContext";
-import { changeRequests } from "./lib/api";
+import { changeRequests, auth } from "./lib/api";
 
 type EditableSection = "Account" | "Emergency Contact" | "Payment & Tax Details";
 const EDITABLE: EditableSection[] = ["Account", "Emergency Contact", "Payment & Tax Details"];
@@ -30,8 +30,9 @@ const FIELD_MAP: Record<string, Record<string, string>> = {
 export default function RequestChangeScreen() {
   const router = useRouter();
   const raw = useLocalSearchParams();
-  const { driver } = useAuth();
+  const { driver, refreshProfile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  const [showReview, setShowReview] = useState(false);
 
   const section = useMemo(() => {
     const s = Array.isArray(raw.section) ? raw.section[0] : raw.section;
@@ -62,12 +63,61 @@ export default function RequestChangeScreen() {
 
   const set = (k: keyof typeof values, v: string) => setValues((s) => ({ ...s, [k]: v }));
 
+  // Check if this is a first-time entry (all current values empty)
+  const isFirstEntry = useMemo(() => {
+    if (section === "Payment & Tax Details") {
+      return !current.bank.trim() && !current.sort.trim() && !current.account.trim();
+    }
+    if (section === "Emergency Contact") {
+      return !current.eName.trim() && !current.ePhone.trim();
+    }
+    return false;
+  }, [section, current]);
+
+  const doDirectSave = async () => {
+    setSubmitting(true);
+    try {
+      const patch: Record<string, string> = {};
+      if (section === "Payment & Tax Details") {
+        if (values.bank_new.trim()) patch.bank_name = values.bank_new.trim();
+        if (values.sort_new.trim()) patch.sort_code = values.sort_new.trim();
+        if (values.account_new.trim()) patch.account_number = values.account_new.trim();
+        if (values.utr_new.trim()) patch.tax_reference = values.utr_new.trim();
+        if (values.vat_new.trim()) patch.vat_number = values.vat_new.trim();
+      } else if (section === "Emergency Contact") {
+        if (values.name_new.trim()) patch.emergency_name = values.name_new.trim();
+        if (values.relationship_new.trim()) patch.emergency_relationship = values.relationship_new.trim();
+        if (values.ephone_new.trim()) patch.emergency_phone = values.ephone_new.trim();
+        if (values.eemail_new.trim()) patch.emergency_email = values.eemail_new.trim();
+      }
+
+      if (Object.keys(patch).length === 0) {
+        Alert.alert("No changes", "Please fill in at least one field.");
+        setSubmitting(false);
+        return;
+      }
+
+      await auth.updateProfile(patch);
+      await refreshProfile();
+      Alert.alert("Saved", "Your details have been saved successfully.");
+      router.back();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to save.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const submit = async () => {
     if (!driver?.id) return;
-    setSubmitting(true);
 
+    // Always show review modal before saving
+    setShowReview(true);
+    return;
+
+    // Subsequent edit: change request flow
+    setSubmitting(true);
     try {
-      // Build change requests for each changed field
       const fieldMap = FIELD_MAP[section] || {};
       let pairs: { field: string; oldVal: string; newVal: string }[] = [];
 
@@ -93,28 +143,69 @@ export default function RequestChangeScreen() {
         return;
       }
 
-      const sectionKey = section === "Account" ? "account" : section === "Emergency Contact" ? "emergency" : "payment";
-
-      await Promise.all(
-        pairs.map((p) =>
-          changeRequests.create({
-            driver_id: driver.id,
-            section: sectionKey,
-            field_name: fieldMap[p.field] || p.field,
-            old_value: p.oldVal || undefined,
-            new_value: p.newVal,
-          })
-        )
-      );
-
-      Alert.alert("Change request sent", "Your request has been submitted for approval.");
-      router.back();
+      // Direct save — no change request flow needed
+      await doDirectSave();
+      return;
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to submit change request.");
     } finally {
       setSubmitting(false);
     }
   };
+
+  // Build review items for the confirmation modal
+  const reviewItems = useMemo(() => {
+    const items: { label: string; value: string }[] = [];
+    if (section === "Payment & Tax Details") {
+      if (values.bank_new.trim()) items.push({ label: "Bank / Building Society", value: values.bank_new });
+      if (values.sort_new.trim()) items.push({ label: "Sort Code", value: values.sort_new });
+      if (values.account_new.trim()) items.push({ label: "Account Number", value: values.account_new });
+      if (values.utr_new.trim()) items.push({ label: "Unique Tax Reference", value: values.utr_new });
+      if (values.vat_new.trim()) items.push({ label: "VAT Number", value: values.vat_new });
+    } else if (section === "Emergency Contact") {
+      if (values.name_new.trim()) items.push({ label: "Full Name", value: values.name_new });
+      if (values.relationship_new.trim()) items.push({ label: "Relationship", value: values.relationship_new });
+      if (values.ephone_new.trim()) items.push({ label: "Phone", value: values.ephone_new });
+      if (values.eemail_new.trim()) items.push({ label: "Email", value: values.eemail_new });
+    }
+    return items;
+  }, [section, values]);
+
+  // Review confirmation modal
+  if (showReview) {
+    return (
+      <View style={styles.overlay}>
+        <View style={styles.reviewCard}>
+          <Text style={styles.reviewTitle}>Please Review Your Details</Text>
+          <Text style={styles.reviewSubtitle}>Once saved, changes will require client approval.</Text>
+          <View style={styles.reviewDivider} />
+          {reviewItems.map((item) => (
+            <View key={item.label} style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>{item.label}</Text>
+              <Text style={styles.reviewValue}>{item.value}</Text>
+            </View>
+          ))}
+          {reviewItems.length === 0 && (
+            <Text style={styles.reviewEmpty}>No details entered. Please go back and fill in the form.</Text>
+          )}
+          <View style={styles.reviewDivider} />
+          <TouchableOpacity
+            style={[styles.btn, styles.btnPrimary, submitting && { opacity: 0.6 }]}
+            onPress={() => { setShowReview(false); doDirectSave(); }}
+            disabled={submitting || reviewItems.length === 0}
+          >
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Confirm & Save</Text>}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btn, styles.btnGhost]}
+            onPress={() => setShowReview(false)}
+          >
+            <Text style={styles.btnText}>Go Back & Edit</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   if (!isEditable) {
     return (
@@ -150,29 +241,20 @@ export default function RequestChangeScreen() {
 
         {section === "Emergency Contact" && (
           <>
-            <Field label="Current Name" value={current.eName} readOnly />
-            <Field label="Request New Name" value={values.name_new} onChangeText={(t) => set("name_new", t)} placeholder="Full name" />
-            <Field label="Current Relationship" value={current.eRelationship} readOnly />
-            <Field label="Request New Relationship" value={values.relationship_new} onChangeText={(t) => set("relationship_new", t)} placeholder="e.g., Spouse" />
-            <Field label="Current Phone" value={current.ePhone} readOnly />
-            <Field label="Request New Phone" value={values.ephone_new} onChangeText={(t) => set("ephone_new", t.replace(/\D/g, ""))} placeholder="Phone" keyboardType="phone-pad" />
-            <Field label="Current Email" value={current.eEmail} readOnly />
-            <Field label="Request New Email" value={values.eemail_new} onChangeText={(t) => set("eemail_new", t)} placeholder="Email" keyboardType="email-address" />
+            <Field label="Full Name" value={values.name_new} onChangeText={(t) => set("name_new", t)} placeholder="Full name" />
+            <Field label="Relationship" value={values.relationship_new} onChangeText={(t) => set("relationship_new", t)} placeholder="e.g., Spouse" />
+            <Field label="Phone" value={values.ephone_new} onChangeText={(t) => set("ephone_new", t.replace(/\D/g, ""))} placeholder="Phone" keyboardType="phone-pad" />
+            <Field label="Email" value={values.eemail_new} onChangeText={(t) => set("eemail_new", t)} placeholder="Email" keyboardType="email-address" />
           </>
         )}
 
         {section === "Payment & Tax Details" && (
           <>
-            <Field label="Current Bank / Building Society" value={current.bank} readOnly />
-            <Field label="Request New Bank / Building Society" value={values.bank_new} onChangeText={(t) => set("bank_new", t)} placeholder="Bank name" />
-            <Field label="Current Sort Code" value={current.sort} readOnly />
-            <Field label="Request New Sort Code" value={values.sort_new} onChangeText={(t) => set("sort_new", t.replace(/\D/g, ""))} placeholder="e.g., 12-34-56" />
-            <Field label="Current Account Number" value={current.account} readOnly />
-            <Field label="Request New Account Number" value={values.account_new} onChangeText={(t) => set("account_new", t.replace(/\D/g, ""))} placeholder="Account number" />
-            <Field label="Current Unique Tax Reference" value={current.utr} readOnly />
-            <Field label="Request New Unique Tax Reference" value={values.utr_new} onChangeText={(t) => set("utr_new", t)} placeholder="UTR" />
-            <Field label="Current VAT Number" value={current.vat} readOnly />
-            <Field label="Request New VAT Number" value={values.vat_new} onChangeText={(t) => set("vat_new", t)} placeholder="VAT (if applicable)" />
+            <Field label="Bank / Building Society" value={values.bank_new} onChangeText={(t) => set("bank_new", t)} placeholder="Bank name" />
+            <Field label="Sort Code" value={values.sort_new} onChangeText={(t) => set("sort_new", t.replace(/\D/g, ""))} placeholder="e.g., 123456" />
+            <Field label="Account Number" value={values.account_new} onChangeText={(t) => set("account_new", t.replace(/\D/g, ""))} placeholder="Account number" />
+            <Field label="Unique Tax Reference" value={values.utr_new} onChangeText={(t) => set("utr_new", t)} placeholder="UTR" />
+            <Field label="VAT Number (If applicable)" value={values.vat_new} onChangeText={(t) => set("vat_new", t)} placeholder="VAT (if applicable)" />
           </>
         )}
 
@@ -181,7 +263,7 @@ export default function RequestChangeScreen() {
           onPress={submit}
           disabled={submitting}
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Submit Request</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Save Details</Text>}
         </TouchableOpacity>
         <Button label="Back" onPress={() => router.back()} />
       </View>
@@ -238,4 +320,67 @@ const styles = StyleSheet.create({
   btnPrimary: { backgroundColor: colors.primary },
   btnGhost: { backgroundColor: "#9BA7A0" },
   btnText: { color: "#fff", textAlign: "center", fontWeight: "700" },
+  overlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  reviewCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
+    padding: 24,
+    width: "100%",
+    maxWidth: 420,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  reviewTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  reviewSubtitle: {
+    fontSize: 13,
+    color: "#6B7280",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  reviewDivider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "#E5E7EB",
+    marginVertical: 12,
+  },
+  reviewRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#F3F4F6",
+  },
+  reviewLabel: {
+    color: "#374151",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  reviewValue: {
+    color: colors.text,
+    fontWeight: "700",
+    fontSize: 14,
+    textAlign: "right",
+    flexShrink: 1,
+    marginLeft: 12,
+  },
+  reviewEmpty: {
+    color: "#9CA3AF",
+    textAlign: "center",
+    paddingVertical: 16,
+  },
 });

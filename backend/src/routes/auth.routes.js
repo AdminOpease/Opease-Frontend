@@ -13,5 +13,8 @@ router.post('/refresh', validate(refreshSchema), ctrl.refresh);
 router.post('/forgot-password', validate(forgotPasswordSchema), ctrl.forgotPassword);
 router.post('/reset-password', validate(resetPasswordSchema), ctrl.resetPassword);
 router.get('/me', authenticate, ctrl.me);
+router.patch('/profile', authenticate, ctrl.updateProfile);
+router.post('/submit-dvla-code', authenticate, ctrl.submitDvlaCode);
+router.post('/submit-rtw-code', authenticate, ctrl.submitRtwCode);
 
 export default router;

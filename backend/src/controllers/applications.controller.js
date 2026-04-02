@@ -9,7 +9,7 @@ export async function submit(req, res, next) {
       email, firstName, lastName, phone, station,
       licenceNumber, licenceExpiry, licenceCountry, dateTestPassed,
       idDocumentType, idExpiry, passportCountry,
-      rightToWork, shareCode, niNumber,
+      rightToWork, shareCode, visaExpiry, niNumber,
       addressLine1, addressLine2, town, county, postcode,
     } = req.body;
 
@@ -31,6 +31,7 @@ export async function submit(req, res, next) {
         passport_country: passportCountry,
         right_to_work: rightToWork,
         share_code: shareCode,
+        visa_expiry: visaExpiry || null,
         ni_number: niNumber,
         address_line1: addressLine1,
         address_line2: addressLine2,
@@ -53,6 +54,7 @@ export async function submit(req, res, next) {
         passport_country: passportCountry || driver.passport_country,
         right_to_work: rightToWork || driver.right_to_work,
         share_code: shareCode || driver.share_code,
+        visa_expiry: visaExpiry || driver.visa_expiry,
         ni_number: niNumber || driver.ni_number,
         address_line1: addressLine1 || driver.address_line1,
         address_line2: addressLine2 || driver.address_line2,
@@ -152,6 +154,36 @@ export async function update(req, res, next) {
       await db('drivers')
         .where({ id: updated.driver_id })
         .update({ amazon_id: req.body.account_id, updated_at: new Date() });
+    }
+
+    // Auto-populate safety_training_date when driving test result is Pass
+    if (req.body.driving_test_result === 'Pass') {
+      const bookedSlot = updated.contract_signing;
+      if (bookedSlot) {
+        try {
+          const parsed = JSON.parse(bookedSlot);
+          if (parsed?.date) {
+            await db('drivers')
+              .where({ id: updated.driver_id })
+              .update({ safety_training_date: parsed.date, updated_at: new Date() });
+          }
+        } catch {}
+      }
+    }
+
+    // Auto-populate online_training_date when training result is Complete
+    if (req.body.training_result === 'Complete') {
+      const booked = updated.training_booked;
+      if (booked) {
+        try {
+          const parsed = JSON.parse(booked);
+          if (parsed?.date) {
+            await db('drivers')
+              .where({ id: updated.driver_id })
+              .update({ online_training_date: parsed.date, updated_at: new Date() });
+          }
+        } catch {}
+      }
     }
 
     res.json(updated);

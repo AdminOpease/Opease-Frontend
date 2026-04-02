@@ -32,8 +32,8 @@ export const updateVanSchema = {
 
 export const listAssignmentsSchema = {
   query: Joi.object({
-    startDate: Joi.date(),
-    endDate: Joi.date(),
+    startDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
+    endDate: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/),
     depot: Joi.string().max(50),
     driverId: Joi.string().uuid(),
   }),
@@ -43,6 +43,6 @@ export const createAssignmentSchema = {
   body: Joi.object({
     driver_id: Joi.string().uuid().required(),
     van_id: Joi.string().uuid().required(),
-    assign_date: Joi.date().required(),
+    assign_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
   }),
 };

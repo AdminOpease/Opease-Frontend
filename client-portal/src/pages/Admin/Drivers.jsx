@@ -1,18 +1,27 @@
 // src/pages/Admin/Drivers.jsx
 import * as React from 'react';
 import {
-  Box, Paper, Stack, TextField, InputAdornment,
-  Chip, IconButton, Menu, MenuItem, Table, TableHead, TableBody, TableRow, TableCell, Typography
+  Box, Paper, Stack, TextField, InputAdornment, Button, Grid,
+  Chip, IconButton, Menu, MenuItem, Select, OutlinedInput,
+  Table, TableHead, TableBody, TableRow, TableCell, Typography,
+  Dialog, DialogContent, DialogActions, Divider,
 } from '@mui/material';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import SearchIcon from '@mui/icons-material/Search';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { Link as RouterLink } from 'react-router-dom';
 import StatusChip from '../../components/common/StatusChip';
 import { useAppStore } from '../../state/AppStore.jsx';
+import { drivers as driversApi } from '../../services/api';
 
 const ALL = 'All Depots';
 const STATUS_OPTIONS = ['All', 'Active', 'Inactive', 'Onboarding', 'Offboarded'];
+const STATUS_COLORS = {
+  Active:      { bg: '#DCFCE7', fg: '#065F46' },
+  Inactive:    { bg: '#E5E7EB', fg: '#374151' },
+  Onboarding:  { bg: '#FEF3C7', fg: '#92400E' },
+  Offboarded:  { bg: '#FEE2E2', fg: '#991B1B' },
+};
 
 // Static style objects (extracted to avoid re-creation on every render)
 const pageSx = { mt: -10 };
@@ -80,12 +89,17 @@ const rowMenuItemSx = {
 };
 
 export default function AdminDrivers() {
-  const { drivers = [], setDrivers } = useAppStore();
+  const { drivers = [], setDrivers, fetchDrivers } = useAppStore();
 
   // Depot (nav-style pill dropdown)
+  const { depots: stationCodes } = useAppStore();
   const depots = React.useMemo(
-    () => [ALL, ...Array.from(new Set(drivers.map((d) => d.depot)))],
-    [drivers]
+    () => {
+      const fromDrivers = drivers.map((d) => d.depot).filter(Boolean);
+      const all = Array.from(new Set([...stationCodes, ...fromDrivers])).sort();
+      return [ALL, ...all];
+    },
+    [drivers, stationCodes]
   );
   const [depot, setDepot] = React.useState('DLU2');
   const [depotEl, setDepotEl] = React.useState(null);
@@ -96,12 +110,8 @@ export default function AdminDrivers() {
   const deferredQuery = React.useDeferredValue(query);
 
   // Status filter in header (defaults to Active)
-  const [statusFilter, setStatusFilter] = React.useState('Active');
+  const [statusFilter, setStatusFilter] = React.useState('All');
   const [statusEl, setStatusEl] = React.useState(null);
-
-  // Row actions (":" menu)
-  const [rowMenuEl, setRowMenuEl] = React.useState(null);
-  const [rowEmail, setRowEmail] = React.useState(null);
 
   // Derived lists
   const byDepot = React.useMemo(
@@ -129,20 +139,75 @@ export default function AdminDrivers() {
     return base;
   }, [byDepot]);
 
-  // Row action -> update status
-  const setStatusFor = (email, newStatus) => {
-    const normalized =
-      newStatus === 'Onboard' ? 'Onboarding' :
-      newStatus === 'Offboard' ? 'Offboarded' : newStatus;
+  // Update driver status via API
+  const setStatusFor = async (driverId, newStatus) => {
     setDrivers((prev) =>
-      prev.map((d) => (d.email === email ? { ...d, status: normalized } : d))
+      prev.map((d) => (d.id === driverId ? { ...d, status: newStatus } : d))
     );
+    try { await driversApi.update(driverId, { status: newStatus }); } catch (e) { console.error('Failed to update status:', e); }
+  };
+
+  // Update driver depot via API
+  const setDepotFor = async (driverId, newDepot) => {
+    setDrivers((prev) =>
+      prev.map((d) => (d.id === driverId ? { ...d, depot: newDepot } : d))
+    );
+    try { await driversApi.update(driverId, { depot: newDepot }); } catch (e) { console.error('Failed to update depot:', e); }
+  };
+
+  // Depot options for inline table dropdown (same stations)
+  const allDepots = React.useMemo(
+    () => stationCodes.length > 0 ? stationCodes : Array.from(new Set(drivers.map((d) => d.depot).filter(Boolean))).sort(),
+    [stationCodes, drivers]
+  );
+
+  // Add Driver dialog
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [addForm, setAddForm] = React.useState({
+    firstName: '', lastName: '', email: '', phone: '', depot: allDepots[0] || '',
+    amazonId: '', transporterId: '',
+  });
+  const [addSubmitting, setAddSubmitting] = React.useState(false);
+
+  const setAdd = (key) => (e) => setAddForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleAddDriver = async () => {
+    if (!addForm.firstName.trim() || !addForm.lastName.trim() || !addForm.email.trim()) return;
+    try {
+      setAddSubmitting(true);
+      await driversApi.create({
+        first_name: addForm.firstName.trim(),
+        last_name: addForm.lastName.trim(),
+        email: addForm.email.trim().toLowerCase(),
+        phone: addForm.phone.trim(),
+        depot: addForm.depot || null,
+        status: 'Active',
+        amazon_id: addForm.amazonId.trim() || null,
+        transporter_id: addForm.transporterId.trim() || null,
+      });
+      fetchDrivers();
+      setAddOpen(false);
+      setAddForm({ firstName: '', lastName: '', email: '', phone: '', depot: allDepots[0] || '', amazonId: '', transporterId: '' });
+    } catch (err) {
+      console.error('Failed to add driver:', err);
+    } finally {
+      setAddSubmitting(false);
+    }
   };
 
   return (
     <Box sx={pageSx}>
-      {/* top-right depot pill */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+      {/* top-right buttons */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 1 }}>
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />}
+          onClick={() => setAddOpen(true)}
+          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
+        >
+          Add Driver
+        </Button>
         <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={depotBtnSx}>
           <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>
             {depot}
@@ -171,10 +236,23 @@ export default function AdminDrivers() {
         {/* Counts card */}
         <Paper variant="outlined" sx={{ ...card, px: 1.25 }}>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
-            <Chip label={`Active: ${counts.Active || 0}`}         variant="outlined" sx={statChip} />
-            <Chip label={`Inactive: ${counts.Inactive || 0}`}     variant="outlined" sx={statChip} />
-            <Chip label={`Onboarding: ${counts.Onboarding || 0}`} variant="outlined" sx={statChip} />
-            <Chip label={`Offboarded: ${counts.Offboarded || 0}`} variant="outlined" sx={statChip} />
+            {['Active', 'Inactive', 'Onboarding', 'Offboarded'].map((s) => (
+              <Chip
+                key={s}
+                label={`${s}: ${counts[s] || 0}`}
+                variant={statusFilter === s ? 'filled' : 'outlined'}
+                onClick={() => setStatusFilter(statusFilter === s ? 'All' : s)}
+                sx={{
+                  ...statChip,
+                  cursor: 'pointer',
+                  ...(statusFilter === s && {
+                    bgcolor: STATUS_COLORS[s]?.bg,
+                    color: STATUS_COLORS[s]?.fg,
+                    borderColor: STATUS_COLORS[s]?.fg,
+                  }),
+                }}
+              />
+            ))}
           </Stack>
         </Paper>
 
@@ -215,10 +293,11 @@ export default function AdminDrivers() {
         >
           <TableHead>
             <TableRow>
-              <TableCell sx={{ ...th, width: '22%' }}>Name</TableCell>
-              <TableCell sx={{ ...th, width: '16%' }}>Phone</TableCell>
-              <TableCell sx={{ ...th, width: '22%' }}>Email</TableCell>
-              <TableCell sx={{ ...th, width: '14%' }}>Account ID</TableCell>
+              <TableCell sx={{ ...th, width: '18%' }}>Name</TableCell>
+              <TableCell sx={{ ...th, width: '14%' }}>Phone</TableCell>
+              <TableCell sx={{ ...th, width: '18%' }}>Email</TableCell>
+              <TableCell sx={{ ...th, width: '12%' }}>Account ID</TableCell>
+              <TableCell sx={{ ...th, width: '12%' }}>Transporter ID</TableCell>
               <TableCell sx={{ width: '12%' }}>
                 <Stack direction="row" alignItems="center" spacing={0.5}>
                   <Typography component="span" sx={{ fontWeight: 700 }}>Status</Typography>
@@ -247,8 +326,7 @@ export default function AdminDrivers() {
                   ))}
                 </Menu>
               </TableCell>
-              <TableCell sx={{ ...th, width: '10%' }}>Depot</TableCell>
-              <TableCell align="right" sx={{ ...th, width: '2%' }}>Actions</TableCell>
+              <TableCell sx={{ ...th, width: '12%' }}>Depot</TableCell>
             </TableRow>
           </TableHead>
 
@@ -275,16 +353,64 @@ export default function AdminDrivers() {
                   <TableCell>{d.phone}</TableCell>
                   <TableCell>{d.email}</TableCell>
                   <TableCell>{accountId}</TableCell>
-                  <TableCell><StatusChip status={d.status} /></TableCell>
-                  <TableCell>{d.depot}</TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      aria-label="more"
-                      onClick={(e) => { setRowMenuEl(e.currentTarget); setRowEmail(d.email); }}
+                  <TableCell>
+                    <Typography
+                      component={RouterLink}
+                      to={`/admin/drivers/${encodeURIComponent(d.email)}`}
+                      sx={{ fontSize: 12, color: d.transporter_id ? 'primary.main' : '#9CA3AF', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
                     >
-                      <MoreVertIcon fontSize="small" />
-                    </IconButton>
+                      {d.transporter_id || '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={d.status}
+                      onChange={(e) => setStatusFor(d.id, e.target.value)}
+                      size="small"
+                      input={<OutlinedInput />}
+                      MenuProps={{ MenuListProps: { dense: true } }}
+                      sx={{
+                        height: 24,
+                        minHeight: 24,
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        bgcolor: STATUS_COLORS[d.status]?.bg || '#F3F4F6',
+                        color: STATUS_COLORS[d.status]?.fg || '#374151',
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { p: '0 20px 0 8px !important', minHeight: 'unset !important', lineHeight: '24px' },
+                        '& .MuiSelect-icon': { fontSize: 14, color: STATUS_COLORS[d.status]?.fg || '#374151', right: 4 },
+                      }}
+                    >
+                      {['Active', 'Inactive', 'Onboarding', 'Offboarded'].map((s) => (
+                        <MenuItem key={s} value={s} sx={{ fontSize: 11 }}>{s}</MenuItem>
+                      ))}
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={d.depot || ''}
+                      onChange={(e) => setDepotFor(d.id, e.target.value)}
+                      size="small"
+                      input={<OutlinedInput />}
+                      MenuProps={{ MenuListProps: { dense: true } }}
+                      sx={{
+                        height: 24,
+                        minHeight: 24,
+                        borderRadius: 999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        bgcolor: '#F0FDF4',
+                        color: '#166534',
+                        '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
+                        '& .MuiSelect-select': { p: '0 20px 0 8px !important', minHeight: 'unset !important', lineHeight: '24px' },
+                        '& .MuiSelect-icon': { fontSize: 14, color: '#166534', right: 4 },
+                      }}
+                    >
+                      {allDepots.map((dp) => (
+                        <MenuItem key={dp} value={dp} sx={{ fontSize: 12 }}>{dp}</MenuItem>
+                      ))}
+                    </Select>
                   </TableCell>
                 </TableRow>
               );
@@ -292,7 +418,7 @@ export default function AdminDrivers() {
 
             {filtered.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} sx={{ fontSize: 12, color: 'text.secondary' }}>
+                <TableCell colSpan={6} sx={{ fontSize: 12, color: 'text.secondary' }}>
                   No drivers match your filters.
                 </TableCell>
               </TableRow>
@@ -301,30 +427,64 @@ export default function AdminDrivers() {
         </Table>
       </Paper>
 
-      {/* Row actions menu – condensed */}
-      <Menu
-        anchorEl={rowMenuEl}
-        open={Boolean(rowMenuEl)}
-        onClose={() => { setRowMenuEl(null); setRowEmail(null); }}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{ sx: rowMenuPaperSx }}
-        MenuListProps={{ dense: true, sx: { py: 0 } }}
-      >
-        {['Active', 'Inactive', 'Onboard', 'Offboard'].map((opt) => (
-          <MenuItem
-            key={opt}
-            onClick={() => {
-              if (rowEmail) setStatusFor(rowEmail, opt);
-              setRowMenuEl(null);
-              setRowEmail(null);
-            }}
-            sx={rowMenuItemSx}
+      {/* Add Driver Dialog */}
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <Box sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <PersonAddIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 700 }}>Add Driver</Typography>
+          </Stack>
+        </Box>
+        <Divider />
+        <DialogContent sx={{ px: 3, py: 2.5 }}>
+          <Grid container spacing={2}>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>First Name *</Typography>
+              <TextField fullWidth size="small" value={addForm.firstName} onChange={setAdd('firstName')} placeholder="First name" />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Last Name *</Typography>
+              <TextField fullWidth size="small" value={addForm.lastName} onChange={setAdd('lastName')} placeholder="Last name" />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Email *</Typography>
+              <TextField fullWidth size="small" value={addForm.email} onChange={setAdd('email')} placeholder="email@example.com" type="email" />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Phone</Typography>
+              <TextField fullWidth size="small" value={addForm.phone} onChange={setAdd('phone')} placeholder="+447..." />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Station</Typography>
+              <TextField fullWidth size="small" select value={addForm.depot} onChange={setAdd('depot')}>
+                {allDepots.map((d) => <MenuItem key={d} value={d}>{d}</MenuItem>)}
+              </TextField>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Account ID</Typography>
+              <TextField fullWidth size="small" value={addForm.amazonId} onChange={setAdd('amazonId')} placeholder="Account ID" />
+            </Grid>
+            <Grid item xs={6}>
+              <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 0.75 }}>Transporter ID</Typography>
+              <TextField fullWidth size="small" value={addForm.transporterId} onChange={setAdd('transporterId')} placeholder="Transporter ID" />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <Divider />
+        <DialogActions sx={{ px: 3, py: 1.5 }}>
+          <Button onClick={() => setAddOpen(false)} sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddDriver}
+            disabled={!addForm.firstName.trim() || !addForm.lastName.trim() || !addForm.email.trim() || addSubmitting}
+            sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2.5 }}
           >
-            {opt}
-          </MenuItem>
-        ))}
-      </Menu>
+            {addSubmitting ? 'Adding...' : 'Add Driver'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

@@ -8,7 +8,7 @@ export async function list(req, res, next) {
     const { date, depot, driverId, page, limit } = req.query;
     let query = db('working_hours as wh')
       .leftJoin('drivers as d', 'wh.driver_id', 'd.id')
-      .select('wh.*', 'd.first_name', 'd.last_name', 'd.amazon_id')
+      .select('wh.*', 'd.first_name', 'd.last_name', 'd.amazon_id', 'd.transporter_id')
       .orderBy('wh.start_time', 'asc');
 
     if (date) query = query.where('wh.work_date', date);
@@ -73,7 +73,7 @@ export async function importData(req, res, next) {
         if (driver) driverId = driver.id;
       }
 
-      await db('working_hours').insert({
+      await insertAndReturn('working_hours', {
         driver_id: driverId || null,
         work_date,
         depot,

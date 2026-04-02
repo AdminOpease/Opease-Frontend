@@ -3,14 +3,14 @@ import Joi from 'joi';
 // AM Plan
 export const listAmPlanSchema = {
   query: Joi.object({
-    date: Joi.date().required(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
   }),
 };
 
 export const createAmGroupSchema = {
   body: Joi.object({
-    plan_date: Joi.date().required(),
+    plan_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
     title: Joi.string().max(100).required(),
     time: Joi.string().max(10).allow('', null),
@@ -63,7 +63,7 @@ export const updateAmRowSchema = {
 
 export const importAmPlanSchema = {
   body: Joi.object({
-    plan_date: Joi.date().required(),
+    plan_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
     rows: Joi.array().items(
       Joi.object({
@@ -80,14 +80,14 @@ export const importAmPlanSchema = {
 // PM Plan
 export const listPmPlanSchema = {
   query: Joi.object({
-    date: Joi.date().required(),
+    date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
   }),
 };
 
 export const createPmSectionSchema = {
   body: Joi.object({
-    plan_date: Joi.date().required(),
+    plan_date: Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).required(),
     depot: Joi.string().max(50).required(),
     title: Joi.string().max(100).required(),
     time: Joi.string().max(10).allow('', null),

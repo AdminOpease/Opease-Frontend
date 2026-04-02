@@ -20,6 +20,7 @@ import {
   Button,
   TextField,
   Select,
+  CircularProgress,
 } from '@mui/material';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
@@ -35,9 +36,8 @@ import AddIcon from '@mui/icons-material/Add';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import * as XLSX from 'xlsx';
 import { useAppStore } from '../../state/AppStore.jsx';
-import { ROTA_WEEKS, WORK_CODES } from '../../data/rotaDemoData';
-import { VAN_DRIVERS, VAN_SCHEDULE, VAN_DRIVER_SHIFTS } from '../../data/vansDemoData';
-import { vans as vansApi } from '../../services/api';
+import { WORK_CODES } from '../../data/rotaDemoData';
+import { vans as vansApi, rota as rotaApi } from '../../services/api';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -86,8 +86,8 @@ const stickyHeadSx = (left) => ({
 });
 
 function formatShortDate(iso) {
-  const d = new Date(iso + 'T00:00:00');
-  return `${d.getDate()}/${d.getMonth() + 1}`;
+  const [, m, d] = iso.split('-');
+  return `${parseInt(d)}/${parseInt(m)}`;
 }
 
 function formatWeekRange(week) {
@@ -150,7 +150,84 @@ export default function Vans() {
   const [depotEl, setDepotEl] = React.useState(null);
 
   const [weekIdx, setWeekIdx] = React.useState(0);
-  const [vanSchedule, setVanSchedule] = React.useState(() => ({ ...VAN_SCHEDULE }));
+  const [vanSchedule, setVanSchedule] = React.useState({});
+
+  // ── Live rota data ──────────────────────────────────────────────
+  const [ROTA_WEEKS, setRotaWeeks] = React.useState([]);
+  const [liveDrivers, setLiveDrivers] = React.useState([]);
+  const [liveShifts, setLiveShifts] = React.useState({});
+
+  React.useEffect(() => {
+    rotaApi.weeks().then((res) => {
+      const weeks = (res.data || []).map((w) => {
+        // Build days array (7 ISO dates from start_date) — use UTC to avoid DST shifts
+        const days = [];
+        const s = new Date(w.start_date + 'T12:00:00Z');
+        for (let d = 0; d < 7; d++) {
+          const dt = new Date(s.getTime() + d * 86400000);
+          days.push(dt.toISOString().slice(0, 10));
+        }
+        return {
+          weekNumber: w.week_number,
+          label: `Week ${w.week_number}`,
+          id: w.id,
+          startDate: w.start_date,
+          endDate: w.end_date,
+          days,
+        };
+      });
+      setRotaWeeks(weeks);
+      // Default to current week
+      const today = new Date().toISOString().slice(0, 10);
+      const curIdx = weeks.findIndex((w) => w.startDate <= today && w.endDate >= today);
+      if (curIdx >= 0) setWeekIdx(curIdx);
+    }).catch(console.error);
+  }, []);
+
+  // Fetch schedule for current week
+  const week = ROTA_WEEKS[weekIdx];
+  React.useEffect(() => {
+    if (!week) return;
+    const params = { weekId: week.id };
+    if (depot !== ALL) params.depot = depot;
+    rotaApi.schedule(params).then((res) => {
+      const rows = res.data || [];
+      const driverMap = new Map();
+      const shifts = {};
+      for (const r of rows) {
+        if (!driverMap.has(r.driver_id)) {
+          driverMap.set(r.driver_id, {
+            id: r.driver_id,
+            name: `${r.first_name} ${r.last_name}`,
+            info: r.transporter_id || r.amazon_id || '',
+            depot: r.depot,
+          });
+        }
+        const key = `${r.driver_id}-${week.weekNumber}`;
+        shifts[key] = [r.sun || '', r.mon || '', r.tue || '', r.wed || '', r.thu || '', r.fri || '', r.sat || ''];
+      }
+      setLiveDrivers([...driverMap.values()].sort((a, b) => a.name.localeCompare(b.name)));
+      setLiveShifts(shifts);
+    }).catch(console.error);
+  }, [week?.id, depot]);
+
+  // Use live data instead of demo
+  const VAN_DRIVERS = liveDrivers;
+  const VAN_DRIVER_SHIFTS = liveShifts;
+
+  // ── Load van assignments from backend ────────────────────────────
+  React.useEffect(() => {
+    if (!week) return;
+    const params = { startDate: week.days[0], endDate: week.days[6] };
+    if (depot !== ALL) params.depot = depot;
+    vansApi.assignments(params).then((res) => {
+      const schedule = {};
+      for (const a of (res.data || [])) {
+        schedule[`${a.driver_id}-${a.assign_date}`] = a.registration;
+      }
+      setVanSchedule(schedule);
+    }).catch(console.error);
+  }, [week?.id, depot]);
 
   // ── Live fleet state ──────────────────────────────────────────────
   const [fleet, setFleet] = React.useState([]);
@@ -234,20 +311,19 @@ export default function Vans() {
   const [dnuEditId, setDnuEditId] = React.useState(null);
   const [dnuReason, setDnuReason] = React.useState('');
   const [fleetStationFilter, setFleetStationFilter] = React.useState('All');
-  const [editStation, setEditStation] = React.useState('Heathrow');
-  const [newStation, setNewStation] = React.useState('Heathrow');
+  const [editStation, setEditStation] = React.useState(depots[0] || '');
+  const [newStation, setNewStation] = React.useState(depots[0] || '');
   const [editTransmission, setEditTransmission] = React.useState('Manual');
   const [newTransmission, setNewTransmission] = React.useState('Manual');
 
   // ── Auto-assign conflict tracking ──────────────────────────────────
   const [conflicts, setConflicts] = React.useState({});
 
-  const week = ROTA_WEEKS[weekIdx];
-
   // ── Working driver helpers ─────────────────────────────────────────
   // Set of driver IDs working at least 1 day in the selected week
   const workingDriverIds = React.useMemo(() => {
     const ids = new Set();
+    if (!week) return ids;
     VAN_DRIVERS.forEach((driver) => {
       if (driver.left) return;
       const shiftKey = `${driver.id}-${week.weekNumber}`;
@@ -255,14 +331,15 @@ export default function Vans() {
       if (shifts.some((code) => WORK_CODES.has(code))) ids.add(driver.id);
     });
     return ids;
-  }, [week.weekNumber]);
+  }, [week?.weekNumber, VAN_DRIVERS, VAN_DRIVER_SHIFTS]);
 
   // Check if a specific driver is working on a specific day of the week
   const isDriverWorkingOnDay = React.useCallback((driverId, dayIndex) => {
+    if (!week) return false;
     const shiftKey = `${driverId}-${week.weekNumber}`;
     const shifts = VAN_DRIVER_SHIFTS[shiftKey] || Array(7).fill('');
     return WORK_CODES.has(shifts[dayIndex]);
-  }, [week.weekNumber]);
+  }, [week?.weekNumber, VAN_DRIVER_SHIFTS]);
 
   const filteredDrivers = VAN_DRIVERS.filter((driver) => {
     if (driver.left) return false;
@@ -300,18 +377,43 @@ export default function Vans() {
     setPickerSearch('');
   };
 
-  const handleAssignVan = (reg) => {
+  const handleAssignVan = async (reg) => {
     if (!pickerTarget) return;
     const key = `${pickerTarget.driverId}-${pickerTarget.date}`;
-    setVanSchedule((prev) => ({ ...prev, [key]: reg }));
-    setConflicts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    try {
+      // Look up van by reg — search all vans, not just filtered fleet
+      let van = fleet.find((v) => v.reg === reg);
+      if (!van) {
+        // Van might be at another station — fetch all vans to find it
+        const allVans = await vansApi.list({});
+        van = (allVans.data || []).find((v) => v.registration === reg);
+      }
+      if (!van) { console.error('Van not found:', reg); return; }
+      const vanId = van.id || van.id;
+      await vansApi.assign({ driver_id: pickerTarget.driverId, van_id: vanId, assign_date: pickerTarget.date });
+      setVanSchedule((prev) => ({ ...prev, [key]: reg }));
+      setConflicts((prev) => { const next = { ...prev }; delete next[key]; return next; });
+    } catch (err) {
+      console.error('Failed to save van assignment:', err);
+      alert('Failed to assign van: ' + (err.message || err));
+    }
     setPickerAnchor(null);
     setPickerTarget(null);
   };
 
-  const handleClearVan = () => {
+  const handleClearVan = async () => {
     if (!pickerTarget) return;
     const key = `${pickerTarget.driverId}-${pickerTarget.date}`;
+    // Find and delete the assignment from backend
+    try {
+      const res = await vansApi.assignments({ driverId: pickerTarget.driverId, startDate: pickerTarget.date, endDate: pickerTarget.date });
+      const existing = (res.data || []);
+      for (const a of existing) {
+        await vansApi.deleteAssignment(a.id);
+      }
+    } catch (err) {
+      console.error('Failed to clear van assignment:', err);
+    }
     setVanSchedule((prev) => {
       const next = { ...prev };
       delete next[key];
@@ -373,35 +475,51 @@ export default function Vans() {
     setEditReason(van.reason || '');
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     const trimmedReg = editReg.trim().toUpperCase();
     if (!trimmedReg) return;
-    setFleet((prev) =>
-      prev.map((v) => v.id === editingId ? { ...v, reg: trimmedReg, make: editMake, station: editStation, transmission: editTransmission, doNotUse: editDoNotUse, reason: editDoNotUse ? editReason : '' } : v)
-    );
-    setEditingId(null);
+    try {
+      await vansApi.update(editingId, { registration: trimmedReg, make: editMake, station: editStation, transmission: editTransmission });
+      setFleet((prev) =>
+        prev.map((v) => v.id === editingId ? { ...v, reg: trimmedReg, make: editMake, station: editStation, transmission: editTransmission, doNotUse: editDoNotUse, reason: editDoNotUse ? editReason : '' } : v)
+      );
+      setEditingId(null);
+    } catch (err) {
+      console.error('Failed to update van:', err);
+    }
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
   };
 
-  const handleAddVan = () => {
+  const handleAddVan = async () => {
     const trimmedReg = newReg.trim().toUpperCase();
     if (!trimmedReg) return;
-    // Check for duplicate reg
     if (fleet.some((v) => v.reg === trimmedReg)) return;
-    setFleet((prev) => [...prev, { id: nextId.current++, reg: trimmedReg, make: newMake, station: newStation, transmission: newTransmission, doNotUse: false, reason: '' }]);
-    setNewReg('');
-    setNewMake('Ford');
-    setNewStation('Heathrow');
-    setNewTransmission('Manual');
-    setAddMode(false);
+    try {
+      const res = await vansApi.create({ registration: trimmedReg, make: newMake, station: newStation, transmission: newTransmission });
+      const v = res.data || res;
+      setFleet((prev) => [...prev, { id: v.id, reg: v.registration, make: v.make, station: v.station, transmission: v.transmission || 'Manual', doNotUse: false, reason: '' }]);
+      setNewReg('');
+      setNewMake('Ford');
+      setNewStation(depots[0] || 'Heathrow');
+      setNewTransmission('Manual');
+      setAddMode(false);
+    } catch (err) {
+      console.error('Failed to add van:', err);
+      alert('Failed to add van: ' + (err.message || err));
+    }
   };
 
-  const handleDeleteVan = (id) => {
-    setFleet((prev) => prev.filter((v) => v.id !== id));
-    setDeleteConfirm(null);
+  const handleDeleteVan = async (id) => {
+    try {
+      await vansApi.remove(id);
+      setFleet((prev) => prev.filter((v) => v.id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      console.error('Failed to delete van:', err);
+    }
   };
 
   const handleMarkDoNotUse = (vanId) => {
@@ -495,6 +613,10 @@ export default function Vans() {
     setConflicts(needsAssignment);
   };
 
+  if (!week || ROTA_WEEKS.length === 0) {
+    return <Box sx={{ p: 4, textAlign: 'center' }}><CircularProgress size={28} /></Box>;
+  }
+
   return (
     <Box>
       {/* ── Header bar ─────────────────────────────────────────── */}
@@ -527,7 +649,7 @@ export default function Vans() {
             <ChevronLeftIcon fontSize="small" />
           </IconButton>
           <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 180, textAlign: 'center', userSelect: 'none' }}>
-            Week {week.weekNumber} ({formatWeekRange(week)})
+            {week ? `Week ${week.weekNumber} (${formatWeekRange(week)})` : 'Loading...'}
           </Typography>
           <IconButton size="small" disabled={weekIdx === ROTA_WEEKS.length - 1} onClick={() => { setWeekIdx((i) => i + 1); setConflicts({}); }}>
             <ChevronRightIcon fontSize="small" />
@@ -805,7 +927,7 @@ export default function Vans() {
                 size="small"
                 variant="contained"
                 startIcon={<AddIcon />}
-                onClick={() => { setAddMode(true); setNewReg(''); setNewMake('Ford'); setNewTransmission('Manual'); }}
+                onClick={() => { setAddMode(true); setNewReg(''); setNewMake('Ford'); setNewStation(depots[0] || ''); setNewTransmission('Manual'); }}
                 sx={{
                   bgcolor: '#2E4C1E',
                   textTransform: 'none',

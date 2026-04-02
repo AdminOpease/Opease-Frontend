@@ -55,6 +55,7 @@ function patch(path: string, data: unknown) {
 export const auth = {
   login: (data: { email: string; password: string }) => post('/auth/login', data),
   me: () => get('/auth/me'),
+  updateProfile: (data: Record<string, string>) => patch('/auth/profile', data),
 };
 
 // ── Notifications ──
@@ -84,4 +85,14 @@ export const applications = {
 export const changeRequests = {
   create: (data: { driver_id: string; section: string; field_name: string; old_value?: string; new_value: string }) =>
     post('/change-requests', data),
+};
+
+export const driverActions = {
+  submitDvlaCode: (code: string) => post('/auth/submit-dvla-code', { dvla_check_code: code }),
+  submitRtwCode: (code: string) => post('/auth/submit-rtw-code', { rtw_share_code_new: code }),
+};
+
+export const availability = {
+  mine: () => get('/rota/availability/mine'),
+  submit: (id: string, data: Record<string, string | null>) => patch(`/rota/availability/${id}`, data),
 };
