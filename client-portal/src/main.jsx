@@ -7,6 +7,8 @@ import { createTheme } from '@mui/material/styles'
 
 import AppLayout from './layouts/AppLayout'
 import ErrorBoundary from './components/common/ErrorBoundary'
+import { AuthProvider } from './context/AuthContext'
+import ProtectedRoute from './components/ProtectedRoute'
 import './index.css'
 
 // shared in-memory store
@@ -15,7 +17,9 @@ import { AppStoreProvider } from './state/AppStore.jsx'
 // compact MUI overrides
 import baseTheme from './theme/muiTheme.js'
 
-// Lazy-loaded route components (code splitting)
+// Lazy-loaded route components
+const Login = React.lazy(() => import('./pages/Login'))
+
 const Onboarding = React.lazy(() => import('./pages/Recruitment/Onboarding'))
 const OnboardingPhase1 = React.lazy(() => import('./pages/Recruitment/OnboardingPhase1.jsx'))
 const OnboardingPhase2 = React.lazy(() => import('./pages/Recruitment/OnboardingPhase2.jsx'))
@@ -39,6 +43,8 @@ const DriverDetailLayout = React.lazy(() => import('./pages/Admin/DriverDetail/D
 const DriverProfile = React.lazy(() => import('./pages/Admin/DriverDetail/Profile.jsx'))
 const DriverDocuments = React.lazy(() => import('./pages/Admin/DriverDetail/Documents.jsx'))
 
+const UserManagement = React.lazy(() => import('./pages/Settings/UserManagement.jsx'))
+
 // Suspense fallback
 const Loading = () => (
   <Box sx={{ display: 'flex', justifyContent: 'center', pt: 8 }}>
@@ -46,13 +52,18 @@ const Loading = () => (
   </Box>
 )
 
-// Brand theme merged with compact table/menu overrides
+// Helper to wrap routes with permission check
+const P = ({ pageKey, children }) => (
+  <ProtectedRoute pageKey={pageKey}>{children}</ProtectedRoute>
+)
+
+// Brand theme
 const theme = createTheme(
   baseTheme,
   {
     palette: {
       primary:   { main: '#2E4C1E', contrastText: '#FFFFFF' },
-      background:{ default: '#E6E6E6', paper: '#FFFFFF' }, // solid bg + white cards
+      background:{ default: '#E6E6E6', paper: '#FFFFFF' },
       text:      { primary: '#333333', secondary: '#333333' },
     },
     shape: { borderRadius: 14 },
@@ -91,55 +102,62 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <ErrorBoundary>
-        <AppStoreProvider>
-          <BrowserRouter>
-            <Suspense fallback={<Loading />}>
-              <Routes>
-                {/* App shell */}
-                <Route path="/" element={<AppLayout />}>
-                  {/* Default start — no Home/Login */}
-                  <Route index element={<Navigate to="admin/drivers" replace />} />
+        <BrowserRouter>
+          <AuthProvider>
+            <AppStoreProvider>
+              <Suspense fallback={<Loading />}>
+                <Routes>
+                  {/* Public login page */}
+                  <Route path="/login" element={<Login />} />
 
-                  {/* Recruitment */}
-                  <Route path="recruitment/onboarding" element={<Onboarding />}>
-                    <Route index element={<Navigate to="phase-1" replace />} />
-                    <Route path="phase-1" element={<OnboardingPhase1 />} />
-                    <Route path="phase-2" element={<OnboardingPhase2 />} />
+                  {/* Protected app shell */}
+                  <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                    <Route index element={<Navigate to="admin/drivers" replace />} />
+
+                    {/* Recruitment */}
+                    <Route path="recruitment/onboarding" element={<P pageKey="recruitment/onboarding"><Onboarding /></P>}>
+                      <Route index element={<Navigate to="phase-1" replace />} />
+                      <Route path="phase-1" element={<OnboardingPhase1 />} />
+                      <Route path="phase-2" element={<OnboardingPhase2 />} />
+                    </Route>
+                    <Route path="recruitment/dashboard" element={<P pageKey="recruitment/dashboard"><RecruitmentDashboard /></P>} />
+                    <Route path="recruitment/removed" element={<P pageKey="recruitment/removed"><Removed /></P>} />
+
+                    {/* Admin */}
+                    <Route path="admin/drivers" element={<P pageKey="admin/drivers"><AdminDrivers /></P>} />
+                    <Route path="admin/change-requests" element={<P pageKey="admin/change-requests"><AdminChangeRequests /></P>} />
+                    <Route path="admin/stations" element={<P pageKey="admin/stations"><AdminStations /></P>} />
+                    <Route path="admin/expiring-docs" element={<P pageKey="admin/expiring-docs"><AdminExpiringDocs /></P>} />
+
+                    {/* Operations */}
+                    <Route path="operations/working-hours" element={<P pageKey="operations/working-hours"><AdminWorkingHours /></P>} />
+                    <Route path="operations/rota" element={<P pageKey="operations/rota"><OpsRota /></P>} />
+                    <Route path="operations/vans" element={<P pageKey="operations/vans"><OpsVans /></P>} />
+                    <Route path="operations/performance" element={<P pageKey="operations/rota"><OpsPerformance /></P>} />
+                    <Route path="operations/plan" element={<P pageKey="operations/plan"><OpsPlan /></P>}>
+                      <Route index element={<Navigate to="am" replace />} />
+                      <Route path="am" element={<OpsPlanAM />} />
+                      <Route path="pm" element={<OpsPlanPM />} />
+                    </Route>
+
+                    {/* Driver detail (inherits admin/drivers permission) */}
+                    <Route path="admin/drivers/:email" element={<P pageKey="admin/drivers"><DriverDetailLayout /></P>}>
+                      <Route index element={<Navigate to="profile" replace />} />
+                      <Route path="profile" element={<DriverProfile />} />
+                      <Route path="documents" element={<DriverDocuments />} />
+                    </Route>
+
+                    {/* Settings (super admin) */}
+                    <Route path="settings/users" element={<P pageKey="settings/users"><UserManagement /></P>} />
                   </Route>
-                  <Route path="recruitment/dashboard" element={<RecruitmentDashboard />} />
-                  <Route path="recruitment/removed" element={<Removed />} />
 
-                  {/* Admin */}
-                  <Route path="admin/drivers" element={<AdminDrivers />} />
-                  <Route path="admin/change-requests" element={<AdminChangeRequests />} />
-                  <Route path="admin/stations" element={<AdminStations />} />
-                  <Route path="admin/expiring-docs" element={<AdminExpiringDocs />} />
-
-                  {/* Operations */}
-                  <Route path="operations/working-hours" element={<AdminWorkingHours />} />
-                  <Route path="operations/rota" element={<OpsRota />} />
-                  <Route path="operations/vans" element={<OpsVans />} />
-                  <Route path="operations/performance" element={<OpsPerformance />} />
-                  <Route path="operations/plan" element={<OpsPlan />}>
-                    <Route index element={<Navigate to="am" replace />} />
-                    <Route path="am" element={<OpsPlanAM />} />
-                    <Route path="pm" element={<OpsPlanPM />} />
-                  </Route>
-
-                  {/* Driver detail */}
-                  <Route path="admin/drivers/:email" element={<DriverDetailLayout />}>
-                    <Route index element={<Navigate to="profile" replace />} />
-                    <Route path="profile" element={<DriverProfile />} />
-                    <Route path="documents" element={<DriverDocuments />} />
-                  </Route>
-                </Route>
-
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </AppStoreProvider>
+                  {/* Fallback */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </AppStoreProvider>
+          </AuthProvider>
+        </BrowserRouter>
       </ErrorBoundary>
     </ThemeProvider>
   </React.StrictMode>

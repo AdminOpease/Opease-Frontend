@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import db from '../config/database.js';
 import { NotFoundError } from '../utils/errors.js';
 import { paginate } from '../utils/pagination.js';
@@ -83,11 +84,65 @@ export async function getById(req, res, next) {
 export async function update(req, res, next) {
   try {
     const driverId = req.params.id;
-    const [driver] = await db('drivers')
+    const DAY_COLS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+    // Fetch old driver data before update (needed for depot change detection)
+    const oldDriver = await db('drivers').where({ id: driverId }).first();
+    if (!oldDriver) throw new NotFoundError('Driver');
+
+    await db('drivers')
       .where({ id: driverId })
-      .update({ ...req.body, updated_at: new Date() })
-      .returning('*');
-    if (!driver) throw new NotFoundError('Driver');
+      .update({ ...req.body, updated_at: new Date() });
+    const driver = await db('drivers').where({ id: driverId }).first();
+
+    // ── Depot change: create transfer records for days worked at old depot ──
+    if (req.body.depot && req.body.depot !== oldDriver.depot) {
+      const oldDepot = oldDriver.depot;
+      const newDepot = req.body.depot;
+      const today = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const todayDayIdx = new Date(todayStr + 'T12:00:00Z').getUTCDay(); // 0=Sun
+
+      const currentWeek = await db('rota_weeks')
+        .where('start_date', '<=', todayStr)
+        .where('end_date', '>=', todayStr)
+        .first();
+
+      if (currentWeek) {
+        const schedule = await db('rota_schedule')
+          .where({ driver_id: driverId, week_id: currentWeek.id })
+          .first();
+
+        if (schedule) {
+          // For each day up to and including today, create transfer records
+          for (let d = 0; d <= todayDayIdx && d < 7; d++) {
+            const dayCol = DAY_COLS[d];
+            const shiftCode = schedule[dayCol];
+            if (shiftCode && shiftCode !== '' && shiftCode !== 'R') {
+              // Create transfer: old depot → new depot, with the shift as assigned_code
+              const existing = await db('rota_transfers')
+                .where({ schedule_id: schedule.id, day_col: dayCol })
+                .first();
+
+              if (!existing) {
+                await insertAndReturn('rota_transfers', {
+                  schedule_id: schedule.id,
+                  day_col: dayCol,
+                  from_depot: newDepot,  // driver is NOW at new depot, transfer FROM new depot perspective
+                  to_depot: oldDepot,    // TO old depot (so old depot sees the driver as transferred-in)
+                  assigned_code: shiftCode,
+                });
+              }
+
+              // Replace the shift with old depot code so new depot knows those days were elsewhere
+              await db('rota_schedule')
+                .where({ id: schedule.id })
+                .update({ [dayCol]: oldDepot });
+            }
+          }
+        }
+      }
+    }
 
     // When driver goes Inactive or Offboarded, remove FUTURE rota entries (keep current week + past)
     if (req.body.status === 'Inactive' || req.body.status === 'Offboarded') {
@@ -261,6 +316,23 @@ export async function restore(req, res, next) {
       .returning('*');
     if (!driver) throw new NotFoundError('Driver');
     res.json(driver);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function inviteToPortal(req, res, next) {
+  try {
+    const driverId = req.params.id;
+    const driver = await db('drivers').where({ id: driverId }).first();
+    if (!driver) throw new NotFoundError('Driver');
+
+    const hash = await bcrypt.hash('driver123', 10);
+    await db('drivers')
+      .where({ id: driverId })
+      .update({ password_hash: hash, portal_invited: true, updated_at: new Date() });
+
+    res.json({ message: 'Driver invited to portal', email: driver.email });
   } catch (err) {
     next(err);
   }

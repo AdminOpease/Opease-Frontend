@@ -1,9 +1,12 @@
 // src/layouts/AppLayout.jsx
 import * as React from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { AppBar, Toolbar, Button, Box, Container, Menu, MenuItem } from '@mui/material';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { AppBar, Toolbar, Button, Box, Container, Menu, MenuItem, IconButton, Tooltip } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import SettingsIcon from '@mui/icons-material/Settings';
+import LogoutIcon from '@mui/icons-material/Logout';
 import Logo from '../assets/logo.png';
+import { useAuth } from '../context/AuthContext';
 
 function NavLinkText({ to, children, active }) {
   return (
@@ -26,6 +29,18 @@ function NavLinkText({ to, children, active }) {
 
 export default function AppLayout() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { hasPermission, isSuperAdmin, logout, user } = useAuth();
+
+  // Filter nav items by permission
+  const filterByPerm = (items) => items.filter(({ to }) => {
+    const key = to.replace(/^\//, ''); // strip leading /
+    return hasPermission(key);
+  });
+
+  const hasAdmin = hasPermission('admin/drivers') || hasPermission('admin/stations') || hasPermission('admin/expiring-docs');
+  const hasOps = hasPermission('operations/rota') || hasPermission('operations/vans') || hasPermission('operations/plan') || hasPermission('operations/working-hours');
+  const hasRecruitment = hasPermission('recruitment/onboarding') || hasPermission('recruitment/removed');
 
   // Menus: admin + operations + recruitment
   const [adminAnchor, setAdminAnchor] = React.useState(null);
@@ -82,7 +97,7 @@ export default function AppLayout() {
           {/* Second row: navigation */}
           <Toolbar disableGutters sx={{ justifyContent: 'center', minHeight: 44, p: 0 }}>
             {/* Admin & Compliance dropdown */}
-            <Button
+            {hasAdmin && <Button
               variant={pathname.startsWith('/admin') ? 'contained' : 'outlined'}
               color="primary"
               onClick={(e) => setAdminAnchor(e.currentTarget)}
@@ -104,9 +119,9 @@ export default function AppLayout() {
               }}
             >
               Admin &amp; Compliance
-            </Button>
+            </Button>}
 
-            <Menu
+            {hasAdmin && <Menu
               anchorEl={adminAnchor}
               open={adminOpen}
               onClose={() => setAdminAnchor(null)}
@@ -115,11 +130,11 @@ export default function AppLayout() {
               PaperProps={{ sx: menuPaperSx }}
               MenuListProps={{ dense: true, sx: menuListSx }}
             >
-              {[
+              {filterByPerm([
                 { to: '/admin/drivers', label: 'Drivers' },
                 { to: '/admin/stations', label: 'Stations' },
                 { to: '/admin/expiring-docs', label: 'Expiring Documents' },
-              ].map(({ to, label }) => (
+              ]).map(({ to, label }) => (
                 <MenuItem
                   key={to}
                   component={Link}
@@ -131,10 +146,10 @@ export default function AppLayout() {
                   {label}
                 </MenuItem>
               ))}
-            </Menu>
+            </Menu>}
 
             {/* Operations dropdown */}
-            <Button
+            {hasOps && <Button
               variant={pathname.startsWith('/operations') ? 'contained' : 'outlined'}
               color="primary"
               onClick={(e) => setOpsAnchor(e.currentTarget)}
@@ -156,9 +171,9 @@ export default function AppLayout() {
               }}
             >
               Operations
-            </Button>
+            </Button>}
 
-            <Menu
+            {hasOps && <Menu
               anchorEl={opsAnchor}
               open={opsOpen}
               onClose={() => setOpsAnchor(null)}
@@ -167,12 +182,12 @@ export default function AppLayout() {
               PaperProps={{ sx: menuPaperSx }}
               MenuListProps={{ dense: true, sx: menuListSx }}
             >
-              {[
+              {filterByPerm([
                 { to: '/operations/rota', label: 'Rota' },
                 { to: '/operations/vans', label: 'Van Assignment' },
                 { to: '/operations/plan', label: 'Daily Plan' },
                 { to: '/operations/working-hours', label: 'Working Hours' },
-              ].map(({ to, label }) => (
+              ]).map(({ to, label }) => (
                 <MenuItem
                   key={to}
                   component={Link}
@@ -184,10 +199,10 @@ export default function AppLayout() {
                   {label}
                 </MenuItem>
               ))}
-            </Menu>
+            </Menu>}
 
             {/* Recruitment dropdown */}
-            <Button
+            {hasRecruitment && <Button
               variant={pathname.startsWith('/recruitment/') ? 'contained' : 'outlined'}
               color="primary"
               onClick={(e) => setRecruitAnchor(e.currentTarget)}
@@ -209,9 +224,9 @@ export default function AppLayout() {
               }}
             >
               Recruitment
-            </Button>
+            </Button>}
 
-            <Menu
+            {hasRecruitment && <Menu
               anchorEl={recruitAnchor}
               open={recruitOpen}
               onClose={() => setRecruitAnchor(null)}
@@ -220,25 +235,47 @@ export default function AppLayout() {
               PaperProps={{ sx: menuPaperSx }}
               MenuListProps={{ dense: true, sx: menuListSx }}
             >
-              <MenuItem
-                component={Link}
-                to="/recruitment/onboarding"
-                onClick={() => setRecruitAnchor(null)}
-                selected={pathname === '/recruitment/onboarding'}
-                sx={menuItemSx}
+              {filterByPerm([
+                { to: '/recruitment/onboarding', label: 'Onboarding' },
+                { to: '/recruitment/removed', label: 'Removed' },
+              ]).map(({ to, label }) => (
+                <MenuItem
+                  key={to}
+                  component={Link}
+                  to={to}
+                  onClick={() => setRecruitAnchor(null)}
+                  selected={pathname === to}
+                  sx={menuItemSx}
+                >
+                  {label}
+                </MenuItem>
+              ))}
+            </Menu>}
+
+            {/* Settings (super admin) */}
+            {isSuperAdmin && (
+              <Tooltip title="User Management">
+                <IconButton
+                  onClick={() => navigate('/settings/users')}
+                  sx={{
+                    ml: 1,
+                    color: pathname.startsWith('/settings') ? 'primary.main' : 'text.secondary',
+                  }}
+                >
+                  <SettingsIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+
+            {/* Logout */}
+            <Tooltip title={`Logout (${user?.email || ''})`}>
+              <IconButton
+                onClick={() => { logout(); navigate('/login'); }}
+                sx={{ ml: 0.5, color: 'text.secondary' }}
               >
-                Onboarding
-              </MenuItem>
-              <MenuItem
-                component={Link}
-                to="/recruitment/removed"
-                onClick={() => setRecruitAnchor(null)}
-                selected={pathname === '/recruitment/removed'}
-                sx={menuItemSx}
-              >
-                Removed
-              </MenuItem>
-            </Menu>
+                <LogoutIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Toolbar>
         </Container>
       </AppBar>

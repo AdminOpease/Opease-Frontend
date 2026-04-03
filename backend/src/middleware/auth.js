@@ -28,7 +28,14 @@ export function authenticate(req, res, next) {
     if (authHeader?.startsWith('Bearer ')) {
       try {
         const decoded = jwt.decode(authHeader.slice(7));
-        if (decoded) { req.user = decoded; return next(); }
+        if (decoded) {
+          // Portal user tokens get admin-staff group so existing requireRole checks pass
+          if (decoded.portalUser) {
+            decoded['cognito:groups'] = ['admin-staff'];
+          }
+          req.user = decoded;
+          return next();
+        }
       } catch { /* ignore */ }
     }
     req.user = { sub: 'dev-user', email: 'dev@opease.co.uk', 'cognito:groups': ['admin-staff'] };
