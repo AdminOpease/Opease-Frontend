@@ -19,6 +19,7 @@ import workingHoursRoutes from './routes/workingHours.routes.js';
 import notificationsRoutes from './routes/notifications.routes.js';
 import changeRequestsRoutes from './routes/changeRequests.routes.js';
 import stationsRoutes from './routes/stations.routes.js';
+import portalRoutes from './routes/portal.routes.js';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -49,6 +50,7 @@ app.use('/api/working-hours', workingHoursRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/change-requests', changeRequestsRoutes);
 app.use('/api/stations', stationsRoutes);
+app.use('/api/portal', portalRoutes);
 
 // ─── 404 Handler ───────────────────────────────────────────────
 app.use((req, res) => {

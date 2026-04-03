@@ -28,6 +28,7 @@ export const drivers = {
   create: (data) => post('/drivers', data),
   update: (id, data) => patch(`/drivers/${id}`, data),
   updateStatus: (id, data) => patch(`/drivers/${id}/status`, data),
+  invite: (id) => post(`/drivers/${id}/invite`),
 };
 
 // ─── Applications ─────────────────────────────────
@@ -122,6 +123,22 @@ export const auth = {
   login: (data) => post('/auth/login', data),
   signup: (data) => post('/auth/signup', data),
   me: () => get('/auth/me'),
+};
+
+// ─── Portal Auth ─────────────────────────────────
+export const portalAuth = {
+  login: (data) => post('/portal/login', data),
+  me: () => get('/portal/me'),
+};
+
+// ─── Portal Users (Super Admin) ──────────────────
+export const portalUsers = {
+  list: () => get('/portal/users'),
+  create: (data) => post('/portal/users', data),
+  update: (id, data) => patch(`/portal/users/${id}`, data),
+  remove: (id) => request(`/portal/users/${id}`, { method: 'DELETE' }),
+  setPermissions: (id, permissions) => request(`/portal/users/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ permissions }) }),
+  setDepots: (id, depots) => request(`/portal/users/${id}/depots`, { method: 'PUT', body: JSON.stringify({ depots }) }),
 };
 
 // ─── Helpers ──────────────────────────────────────

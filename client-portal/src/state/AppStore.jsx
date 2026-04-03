@@ -1,10 +1,12 @@
 // client-portal/src/state/AppStore.jsx
 import * as React from 'react';
 import { drivers as driversApi, applications as appsApi, documents as docsApi, changeRequestsApi, stations as stationsApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 const AppStoreContext = React.createContext(null);
 
 export function AppStoreProvider({ children }) {
+  const { depots: allowedDepots, isSuperAdmin } = useAuth();
   const [drivers, setDrivers] = React.useState([]);
   const [documents, setDocuments] = React.useState([]);
   const [applications, setApplications] = React.useState([]);
@@ -28,6 +30,7 @@ export function AppStoreProvider({ children }) {
           depot: d.depot,
           amazon_id: d.amazon_id,
           transporter_id: d.transporter_id,
+          portal_invited: !!d.portal_invited,
         }))
       );
     } catch (err) {
@@ -102,19 +105,29 @@ export function AppStoreProvider({ children }) {
   const fetchStations = React.useCallback(async () => {
     try {
       const res = await stationsApi.list();
-      setDepots((res.data || []).map((s) => s.code || s.name));
+      const allDepots = (res.data || []).map((s) => s.code || s.name);
+      // Filter by allowed depots (super admin sees all)
+      if (isSuperAdmin || !allowedDepots || allowedDepots.length === 0) {
+        setDepots(allDepots);
+      } else {
+        setDepots(allDepots.filter((d) => allowedDepots.includes(d)));
+      }
     } catch (err) {
       console.error('Failed to fetch stations:', err);
     }
   }, []);
 
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   React.useEffect(() => {
+    if (!isAuthenticated || authLoading) { setLoading(false); return; }
     Promise.all([fetchDrivers(), fetchApplications(), fetchDocuments(), fetchStations()])
       .finally(() => setLoading(false));
-  }, [fetchDrivers, fetchApplications, fetchDocuments, fetchStations]);
+  }, [isAuthenticated, authLoading, fetchDrivers, fetchApplications, fetchDocuments, fetchStations]);
 
   // Poll all data every 5s for near-instant updates across portals
   React.useEffect(() => {
+    if (!isAuthenticated) return;
     const refresh = () => { fetchDrivers(); fetchApplications(); fetchDocuments(); fetchStations(); };
     const id = setInterval(refresh, 5_000);
     return () => clearInterval(id);

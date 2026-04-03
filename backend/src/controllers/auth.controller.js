@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import db from '../config/database.js';
 import * as cognito from '../config/cognito.js';
 import { ConflictError } from '../utils/errors.js';
@@ -67,8 +68,18 @@ export async function login(req, res, next) {
 
     if (isDev) {
       const driver = await db('drivers').where({ email }).first();
+      if (!driver) {
+        return res.status(401).json({ error: 'No account found with this email' });
+      }
+      // If driver has a password set (invited), verify it. Otherwise allow any password in dev.
+      if (driver.password_hash) {
+        const valid = await bcrypt.compare(password, driver.password_hash);
+        if (!valid) {
+          return res.status(401).json({ error: 'Invalid password' });
+        }
+      }
       const payload = {
-        sub: driver?.cognito_sub || 'dev-' + Date.now(),
+        sub: driver.cognito_sub || 'dev-' + Date.now(),
         email,
         'cognito:groups': ['candidates'],
       };
@@ -78,7 +89,7 @@ export async function login(req, res, next) {
         refreshToken: 'dev-refresh-' + Date.now(),
         idToken: accessToken,
         expiresIn: 86400,
-        driver: driver || null,
+        driver,
       });
     }
 
