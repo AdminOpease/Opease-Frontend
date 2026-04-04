@@ -90,6 +90,8 @@ function formatShortDate(iso) {
   return `${parseInt(d)}/${parseInt(m)}`;
 }
 
+function toDateStr(d) { return d ? d.slice(0, 10) : ''; }
+
 function formatWeekRange(week) {
   const s = new Date(week.startDate + 'T00:00:00');
   const e = new Date(week.endDate + 'T00:00:00');
@@ -162,7 +164,7 @@ export default function Vans() {
       const weeks = (res.data || []).map((w) => {
         // Build days array (7 ISO dates from start_date) — use UTC to avoid DST shifts
         const days = [];
-        const s = new Date(w.start_date + 'T12:00:00Z');
+        const s = new Date(toDateStr(w.start_date) + 'T12:00:00Z');
         for (let d = 0; d < 7; d++) {
           const dt = new Date(s.getTime() + d * 86400000);
           days.push(dt.toISOString().slice(0, 10));
@@ -171,8 +173,8 @@ export default function Vans() {
           weekNumber: w.week_number,
           label: `Week ${w.week_number}`,
           id: w.id,
-          startDate: w.start_date,
-          endDate: w.end_date,
+          startDate: toDateStr(w.start_date),
+          endDate: toDateStr(w.end_date),
           days,
         };
       });

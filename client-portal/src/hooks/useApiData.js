@@ -17,8 +17,10 @@ export function useRotaData() {
       try {
         const [weeksRes] = await Promise.all([rotaApi.weeks()]);
         const apiWeeks = (weeksRes.data || []).map((w) => {
-          const days = buildDaysFromWeek(w.start_date);
-          return { weekNumber: w.week_number, startDate: w.start_date, endDate: w.end_date, days, id: w.id };
+          const sd = w.start_date ? w.start_date.slice(0, 10) : '';
+          const ed = w.end_date ? w.end_date.slice(0, 10) : '';
+          const days = buildDaysFromWeek(sd);
+          return { weekNumber: w.week_number, startDate: sd, endDate: ed, days, id: w.id };
         });
         if (cancelled) return;
         setWeeks(apiWeeks);
