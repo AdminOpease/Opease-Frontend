@@ -76,6 +76,9 @@ function formatShortDate(iso) {
   return `${parseInt(d)}/${parseInt(m)}`;
 }
 
+// Strip timestamp from PostgreSQL date (e.g. "2026-03-01T00:00:00.000Z" → "2026-03-01")
+function toDateStr(d) { return d ? d.slice(0, 10) : ''; }
+
 function formatWeekRange(week) {
   if (!week) return '';
   const s = new Date(week.startDate + 'T00:00:00');
@@ -192,9 +195,9 @@ export default function Rota() {
       const apiWeeks = (res.data || []).map((w) => ({
         id: w.id,
         weekNumber: w.week_number,
-        startDate: w.start_date,
-        endDate: w.end_date,
-        days: buildDaysFromWeek(w.start_date),
+        startDate: toDateStr(w.start_date),
+        endDate: toDateStr(w.end_date),
+        days: buildDaysFromWeek(toDateStr(w.start_date)),
       }));
       setWeeks(apiWeeks);
       // Default to current week
