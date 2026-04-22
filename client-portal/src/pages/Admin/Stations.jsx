@@ -70,16 +70,31 @@ export default function Stations() {
     } catch (e) { console.error('Failed to add station:', e); }
   };
 
-  const pageSx = { mt: -9 };
+  const pageSx = {}; // was mt:-9 — content now sits below nav like Operations pages
   const th = { fontWeight: 700 };
   const containerSx = { maxWidth: 960, mx: 'auto', width: '100%', px: { xs: 2, sm: 0 } };
 
   return (
     <Box sx={pageSx}>
       <Box sx={containerSx}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-          <Box sx={{ flexGrow: 1 }} />
-          <Button variant="contained" sx={{ fontWeight: 700 }} onClick={() => setShowAdd(v => !v)}>
+        {/* ── Page header bar (matches Operations pages) ─────────── */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 1.5,
+            mb: 2,
+          }}
+        >
+          <Typography variant="h6">Stations</Typography>
+          <Button
+            variant="contained"
+            size="small"
+            sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
+            onClick={() => setShowAdd(v => !v)}
+          >
             Add Station
           </Button>
         </Box>

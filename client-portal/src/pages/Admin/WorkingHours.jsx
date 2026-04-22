@@ -59,7 +59,7 @@ export default function WorkingHours() {
 
   const [depotEl, setDepotEl] = React.useState(null);
 
-  const pageSx = { mt: -10 };
+  const pageSx = {}; // was mt:-10 — content now sits below nav like Operations pages
   const card = {
     borderRadius: 2, border: '1px solid', borderColor: 'divider',
     height: 44, display: 'flex', alignItems: 'center',
@@ -262,37 +262,48 @@ export default function WorkingHours() {
 
   return (
     <Box sx={pageSx}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <Paper variant="outlined" sx={{ ...card, px: 1.25 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <TextField
-              size="small"
-              type="date"
-              label="Date"
-              value={workDate}
-              onChange={(e) => setWorkDate(e.target.value)}
-              InputLabelProps={{ shrink: true }}
-              sx={{ minWidth: 165 }}
-            />
-            <Button size="small" variant="contained" onClick={addRow}>Add Row</Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              style={{ display: 'none' }}
-              onChange={handleFileUpload}
-            />
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Upload (.xlsx / .csv)
-            </Button>
-          </Stack>
-        </Paper>
-
-        <Box sx={{ flexGrow: 1 }} />
+      {/* ── Page header bar (matches Operations pages) ─────────── */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1.5,
+          mb: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6">Working Hours</Typography>
+          <Paper variant="outlined" sx={{ ...card, px: 1.25 }}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField
+                size="small"
+                type="date"
+                label="Date"
+                value={workDate}
+                onChange={(e) => setWorkDate(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                sx={{ minWidth: 165 }}
+              />
+              <Button size="small" variant="contained" onClick={addRow}>Add Row</Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                style={{ display: 'none' }}
+                onChange={handleFileUpload}
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Upload (.xlsx / .csv)
+              </Button>
+            </Stack>
+          </Paper>
+        </Box>
 
         <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={depotBtnSx}>
           <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>

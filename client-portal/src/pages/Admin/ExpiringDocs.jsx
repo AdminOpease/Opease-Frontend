@@ -14,7 +14,7 @@ import { documents as docsApi, drivers as driversApi } from '../../services/api'
 const ALL = 'All Depots';
 const DOC_TYPES = ['All', 'Licence', 'DVLA', 'Right to Work'];
 
-const pageSx = { mt: -10 };
+const pageSx = {}; // was mt:-10 — content now sits below nav like Operations pages
 const pillBtnSx = {
   borderRadius: 9999, px: 2, minHeight: 34,
   border: '1px solid', borderColor: 'rgba(46,76,30,0.35)',
@@ -120,19 +120,32 @@ export default function ExpiringDocs() {
 
   return (
     <Box sx={pageSx}>
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 1 }}>
-        <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={pillBtnSx}>
-          <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>{depot}</Typography>
-          <ExpandMoreIcon fontSize="small" />
-        </IconButton>
-        <Menu anchorEl={depotEl} open={Boolean(depotEl)} onClose={() => setDepotEl(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-          PaperProps={{ sx: menuPaperSx }} MenuListProps={{ dense: true, sx: menuListSx }}>
-          {depotOptions.map((d) => (
-            <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>{d}</MenuItem>
-          ))}
-        </Menu>
+      {/* ── Page header bar (matches Operations pages) ─────────── */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1.5,
+          mb: 2,
+        }}
+      >
+        <Typography variant="h6">Expiring Documents</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={pillBtnSx}>
+            <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>{depot}</Typography>
+            <ExpandMoreIcon fontSize="small" />
+          </IconButton>
+          <Menu anchorEl={depotEl} open={Boolean(depotEl)} onClose={() => setDepotEl(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            PaperProps={{ sx: menuPaperSx }} MenuListProps={{ dense: true, sx: menuListSx }}>
+            {depotOptions.map((d) => (
+              <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>{d}</MenuItem>
+            ))}
+          </Menu>
+        </Box>
       </Box>
 
       <Paper variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden' }}>

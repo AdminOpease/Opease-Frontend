@@ -24,7 +24,7 @@ const STATUS_COLORS = {
 };
 
 // Static style objects (extracted to avoid re-creation on every render)
-const pageSx = { mt: -10 };
+const pageSx = {}; // was mt:-10 — content now sits below nav like Operations pages
 const card = {
   borderRadius: 2,
   border: '1px solid',
@@ -197,38 +197,55 @@ export default function AdminDrivers() {
 
   return (
     <Box sx={pageSx}>
-      {/* top-right buttons */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1, gap: 1 }}>
-        <Button
-          variant="contained"
-          size="small"
-          startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />}
-          onClick={() => setAddOpen(true)}
-          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
-        >
-          Add Driver
-        </Button>
-        <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={depotBtnSx}>
-          <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>
-            {depot}
-          </Typography>
-          <ExpandMoreIcon fontSize="small" />
-        </IconButton>
-        <Menu
-          anchorEl={depotEl}
-          open={Boolean(depotEl)}
-          onClose={() => setDepotEl(null)}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-          transformOrigin={{ vertical: 'top', horizontal: 'center' }}
-          PaperProps={{ sx: menuPaperSx }}
-          MenuListProps={{ dense: true, sx: menuListSx }}
-        >
-          {depots.map((d) => (
-            <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>
-              {d}
-            </MenuItem>
-          ))}
-        </Menu>
+      {/* ── Page header bar (matches Operations pages) ─────────── */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 1.5,
+          mb: 2,
+        }}
+      >
+        {/* Left: title + primary action */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography variant="h6">Drivers</Typography>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />}
+            onClick={() => setAddOpen(true)}
+            sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
+          >
+            Add Driver
+          </Button>
+        </Box>
+
+        {/* Right: depot filter */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={depotBtnSx}>
+            <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>
+              {depot}
+            </Typography>
+            <ExpandMoreIcon fontSize="small" />
+          </IconButton>
+          <Menu
+            anchorEl={depotEl}
+            open={Boolean(depotEl)}
+            onClose={() => setDepotEl(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+            PaperProps={{ sx: menuPaperSx }}
+            MenuListProps={{ dense: true, sx: menuListSx }}
+          >
+            {depots.map((d) => (
+              <MenuItem key={d} onClick={() => { setDepot(d); setDepotEl(null); }} sx={navLikeItemSx}>
+                {d}
+              </MenuItem>
+            ))}
+          </Menu>
+        </Box>
       </Box>
 
       {/* status counts + search side-by-side, aligned */}
