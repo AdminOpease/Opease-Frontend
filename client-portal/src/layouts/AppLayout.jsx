@@ -1,15 +1,10 @@
 // src/layouts/AppLayout.jsx
 import * as React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import {
-  AppBar, Toolbar, Button, Box, Container, Menu, MenuItem, IconButton, Tooltip,
-  Drawer, List, ListItemButton, ListItemText, ListSubheader, Divider, useMediaQuery,
-} from '@mui/material';
+import { AppBar, Toolbar, Button, Box, Container, Menu, MenuItem, IconButton, Tooltip } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
-import MenuIcon from '@mui/icons-material/Menu';
-import CloseIcon from '@mui/icons-material/Close';
 import Logo from '../assets/logo.png';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,11 +32,6 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const { hasPermission, isSuperAdmin, logout, user } = useAuth();
 
-  // < 600px = phone; collapse nav into a drawer.
-  const isMobile = useMediaQuery((t) => t.breakpoints.down('sm'));
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-  React.useEffect(() => { setDrawerOpen(false); }, [pathname]); // close on nav
-
   // Filter nav items by permission
   const filterByPerm = (items) => items.filter(({ to }) => {
     const key = to.replace(/^\//, ''); // strip leading /
@@ -59,31 +49,6 @@ export default function AppLayout() {
   const adminOpen = Boolean(adminAnchor);
   const opsOpen = Boolean(opsAnchor);
   const recruitOpen = Boolean(recruitAnchor);
-
-  // Shared drawer section builder
-  const drawerSection = (title, items) => {
-    const visible = filterByPerm(items);
-    if (visible.length === 0) return null;
-    return (
-      <React.Fragment key={title}>
-        <ListSubheader sx={{ bgcolor: 'transparent', fontWeight: 700, color: 'text.primary', lineHeight: 1.6 }}>
-          {title}
-        </ListSubheader>
-        {visible.map(({ to, label }) => (
-          <ListItemButton
-            key={to}
-            component={Link}
-            to={to}
-            selected={pathname === to || pathname.startsWith(to + '/')}
-            sx={{ pl: 3, py: 1.25 }}
-          >
-            <ListItemText primary={label} primaryTypographyProps={{ fontSize: 15 }} />
-          </ListItemButton>
-        ))}
-        <Divider sx={{ my: 0.5 }} />
-      </React.Fragment>
-    );
-  };
 
   // --- Condensed menu styling ---
   const menuPaperSx = {
@@ -114,49 +79,22 @@ export default function AppLayout() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: 'transparent' }}>
       <AppBar position="static" elevation={0} sx={{ bgcolor: 'transparent', color: 'text.primary' }}>
-        <Container maxWidth={false} disableGutters sx={{ pt: { xs: 1, sm: 2 }, pb: { xs: 1, sm: 1.5 }, px: { xs: 2, sm: 3, md: 4 } }}>
-          {/* Top row: centered logo; hamburger overlaid on mobile */}
+        <Container maxWidth={false} disableGutters sx={{ pt: 2, pb: 1.5, px: { xs: 2, sm: 3, md: 4 } }}>
+          {/* Top row: centered logo */}
           <Box
             sx={{
               position: 'relative',
-              height: { xs: 54, sm: 70 },
+              height: 70,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              mb: { xs: 0, sm: 1 },
+              mb: 1,
             }}
           >
-            {isMobile && (
-              <IconButton
-                aria-label="Open navigation"
-                onClick={() => setDrawerOpen(true)}
-                sx={{ position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)' }}
-                size="large"
-              >
-                <MenuIcon />
-              </IconButton>
-            )}
-            <Box
-              component="img"
-              src={Logo}
-              alt="Logo"
-              sx={{ height: { xs: 44, sm: 80, md: 100 }, display: 'block', maxWidth: '70%', objectFit: 'contain' }}
-            />
-            {isMobile && (
-              <Tooltip title={`Logout (${user?.email || ''})`}>
-                <IconButton
-                  onClick={() => { logout(); navigate('/login'); }}
-                  sx={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', color: 'text.secondary' }}
-                  size="large"
-                >
-                  <LogoutIcon />
-                </IconButton>
-              </Tooltip>
-            )}
+            <img src={Logo} alt="Logo" style={{ height: 100, display: 'block' }} />
           </Box>
 
-          {/* Second row: full navigation (desktop only) */}
-          {!isMobile && (
+          {/* Second row: navigation */}
           <Toolbar disableGutters sx={{ justifyContent: 'center', minHeight: 44, p: 0 }}>
             {/* Admin & Compliance dropdown */}
             {hasAdmin && <Button
@@ -339,61 +277,8 @@ export default function AppLayout() {
               </IconButton>
             </Tooltip>
           </Toolbar>
-          )}
         </Container>
       </AppBar>
-
-      {/* Mobile nav drawer */}
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        PaperProps={{ sx: { width: '80vw', maxWidth: 320 } }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 1.5 }}>
-          <Box component="img" src={Logo} alt="Logo" sx={{ height: 36 }} />
-          <IconButton onClick={() => setDrawerOpen(false)} aria-label="Close navigation">
-            <CloseIcon />
-          </IconButton>
-        </Box>
-        <Divider />
-        <List dense={false} sx={{ flex: 1, pt: 0 }}>
-          {hasAdmin && drawerSection('Admin & Compliance', [
-            { to: '/admin/drivers', label: 'Drivers' },
-            { to: '/admin/stations', label: 'Stations' },
-            { to: '/admin/expiring-docs', label: 'Expiring Documents' },
-          ])}
-          {hasOps && drawerSection('Operations', [
-            { to: '/operations/rota', label: 'Rota' },
-            { to: '/operations/vans', label: 'Van Assignment' },
-            { to: '/operations/plan', label: 'Daily Plan' },
-            { to: '/operations/working-hours', label: 'Working Hours' },
-          ])}
-          {hasRecruitment && drawerSection('Recruitment', [
-            { to: '/recruitment/onboarding', label: 'Onboarding' },
-            { to: '/recruitment/removed', label: 'Removed' },
-          ])}
-          {isSuperAdmin && (
-            <ListItemButton
-              component={Link}
-              to="/settings/users"
-              selected={pathname.startsWith('/settings')}
-              sx={{ pl: 2, py: 1.25 }}
-            >
-              <SettingsIcon sx={{ mr: 1.5, color: 'text.secondary' }} />
-              <ListItemText primary="User Management" primaryTypographyProps={{ fontSize: 15, fontWeight: 600 }} />
-            </ListItemButton>
-          )}
-        </List>
-        <Divider />
-        <ListItemButton
-          onClick={() => { logout(); navigate('/login'); }}
-          sx={{ pl: 2, py: 1.25 }}
-        >
-          <LogoutIcon sx={{ mr: 1.5, color: 'text.secondary' }} />
-          <ListItemText primary="Logout" secondary={user?.email} primaryTypographyProps={{ fontSize: 15, fontWeight: 600 }} />
-        </ListItemButton>
-      </Drawer>
 
       <Box sx={{ flex: 1, width: '100%' }}>
         <Container
