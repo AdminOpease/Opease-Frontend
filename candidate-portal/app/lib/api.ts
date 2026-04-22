@@ -1,11 +1,15 @@
 // app/lib/api.ts — API service layer for candidate-portal
 import { Platform } from 'react-native';
 
-const API_BASE = Platform.select({
-  web: 'http://localhost:4000/api',
-  android: 'http://10.0.2.2:4000/api',
-  default: 'http://localhost:4000/api',
-});
+// In production, set EXPO_PUBLIC_API_BASE (e.g. "https://opease.co.uk/api") at build time.
+// The platform-specific defaults are dev-only fallbacks.
+const API_BASE =
+  process.env.EXPO_PUBLIC_API_BASE ||
+  Platform.select({
+    web: 'http://localhost:4000/api',
+    android: 'http://10.0.2.2:4000/api',
+    default: 'http://localhost:4000/api',
+  });
 
 let _token: string | null = null;
 
