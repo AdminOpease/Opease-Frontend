@@ -208,19 +208,16 @@ export default function AdminDrivers() {
           mb: 2,
         }}
       >
-        {/* Left: title + primary action */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography variant="h6">Drivers</Typography>
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />}
-            onClick={() => setAddOpen(true)}
-            sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
-          >
-            Add Driver
-          </Button>
-        </Box>
+        {/* Left: primary action */}
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<PersonAddIcon sx={{ fontSize: 16 }} />}
+          onClick={() => setAddOpen(true)}
+          sx={{ borderRadius: 9999, textTransform: 'none', fontWeight: 700, px: 2 }}
+        >
+          Add Driver
+        </Button>
 
         {/* Right: depot filter */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
