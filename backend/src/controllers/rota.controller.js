@@ -3,9 +3,49 @@ import db from '../config/database.js';
 import { NotFoundError } from '../utils/errors.js';
 import { updateAndReturn, insertAndReturn } from '../utils/dbHelpers.js';
 
+// ── Week generation helpers ───────────────────────────────────────────────
+// rota_weeks is structural bookkeeping (week_number + date range), not user
+// data. If the table is empty (fresh DB, wiped for testing) we auto-generate
+// 15 weeks centred on today so Rota / Vans / Plan pages have something to show.
+function isoWeekNumber(date) {
+  const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
+function generateRotaWeekRows() {
+  const rows = [];
+  const now = new Date();
+  const dow = now.getUTCDay();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - dow - 28));
+  for (let w = 0; w < 15; w++) {
+    const s = new Date(start);
+    s.setUTCDate(start.getUTCDate() + w * 7);
+    const e = new Date(s);
+    e.setUTCDate(s.getUTCDate() + 6);
+    const thu = new Date(s);
+    thu.setUTCDate(s.getUTCDate() + 4);
+    rows.push({
+      week_number: isoWeekNumber(thu),
+      start_date: s.toISOString().slice(0, 10),
+      end_date: e.toISOString().slice(0, 10),
+    });
+  }
+  return rows;
+}
+
 export async function listWeeks(req, res, next) {
   try {
-    const weeks = await db('rota_weeks').orderBy('week_number', 'asc');
+    let weeks = await db('rota_weeks').orderBy('week_number', 'asc');
+    if (weeks.length === 0) {
+      // Bootstrap on empty — insert fresh week structure, ignore conflicts on
+      // the unique week_number index (covers tiny race between concurrent calls).
+      const rows = generateRotaWeekRows();
+      await db('rota_weeks').insert(rows).onConflict('week_number').ignore();
+      weeks = await db('rota_weeks').orderBy('week_number', 'asc');
+    }
     res.json({ data: weeks });
   } catch (err) {
     next(err);
