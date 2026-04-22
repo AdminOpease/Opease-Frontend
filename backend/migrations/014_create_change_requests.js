@@ -1,13 +1,13 @@
 export function up(knex) {
   return knex.schema.createTable('change_requests', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers').onDelete('CASCADE');
+    t.string('driver_id', 36).references('id').inTable('drivers').onDelete('CASCADE');
     t.string('section', 50).notNullable();
     t.string('field_name', 50).notNullable();
     t.text('old_value');
     t.text('new_value');
     t.string('status', 20).defaultTo('Pending');
-    t.uuid('reviewed_by');
+    t.string('reviewed_by', 36);
     t.timestamp('reviewed_at');
     t.timestamps(true, true);
 

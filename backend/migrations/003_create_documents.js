@@ -1,7 +1,7 @@
 export function up(knex) {
   return knex.schema.createTable('documents', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers').onDelete('CASCADE');
+    t.string('driver_id', 36).references('id').inTable('drivers').onDelete('CASCADE');
     t.string('title', 255);
     t.string('type', 50).notNullable();
     t.string('s3_key', 500).notNullable();

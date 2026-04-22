@@ -1,7 +1,7 @@
 export function up(knex) {
   return knex.schema.createTable('notifications', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers').onDelete('CASCADE');
+    t.string('driver_id', 36).references('id').inTable('drivers').onDelete('CASCADE');
     t.string('type', 20).notNullable();
     t.string('title', 255).notNullable();
     t.text('body');

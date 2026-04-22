@@ -1,7 +1,7 @@
 export function up(knex) {
   return knex.schema.createTable('working_hours', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers');
+    t.string('driver_id', 36).references('id').inTable('drivers');
     t.date('work_date').notNullable();
     t.string('depot', 50);
     t.string('vehicle', 20);

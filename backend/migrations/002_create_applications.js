@@ -1,7 +1,7 @@
 export function up(knex) {
   return knex.schema.createTable('applications', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers').onDelete('CASCADE');
+    t.string('driver_id', 36).references('id').inTable('drivers').onDelete('CASCADE');
     t.date('date_applied').defaultTo(knex.fn.now());
     // Phase 1
     t.string('pre_dcc', 20).defaultTo('In Review');
