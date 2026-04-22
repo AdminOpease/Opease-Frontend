@@ -114,7 +114,6 @@ export default function UserManagement() {
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700 }}>User Management</Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={handleNew}
           sx={{ bgcolor: '#2E4C1E', textTransform: 'none', borderRadius: 2, '&:hover': { bgcolor: '#3d6528' } }}>
           Add User

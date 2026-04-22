@@ -11,8 +11,6 @@ export default function RecruitmentDashboard() {
 
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontWeight: 800, mb: 2 }}>Recruitment Dashboard</Typography>
-
       <Grid container spacing={2}>
         <Grid item xs={12} md={4}>
           <Paper sx={{ p: 2 }}>

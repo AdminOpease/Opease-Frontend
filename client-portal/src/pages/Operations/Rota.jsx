@@ -551,7 +551,7 @@ export default function Rota() {
             '&:hover': { bgcolor: 'rgba(46,76,30,0.06)' },
           }}
         >
-          Rota — DA Capacity ▾
+          DA Capacity ▾
         </Typography>
 
         <Popover

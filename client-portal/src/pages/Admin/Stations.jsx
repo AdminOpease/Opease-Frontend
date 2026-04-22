@@ -88,7 +88,6 @@ export default function Stations() {
             mb: 2,
           }}
         >
-          <Typography variant="h6">Stations</Typography>
           <Button
             variant="contained"
             size="small"

@@ -274,7 +274,6 @@ export default function WorkingHours() {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography variant="h6">Working Hours</Typography>
           <Paper variant="outlined" sx={{ ...card, px: 1.25 }}>
             <Stack direction="row" spacing={1} alignItems="center">
               <TextField

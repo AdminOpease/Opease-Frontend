@@ -632,9 +632,8 @@ export default function Vans() {
           mb: 2,
         }}
       >
-        {/* Title + Manage Fleet + Auto Assign */}
+        {/* Manage Fleet + Auto Assign */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography variant="h6">Vans</Typography>
           <IconButton onClick={() => { setFleetOpen(true); setFleetSearch(''); setFleetStationFilter('All'); setAddMode(false); setEditingId(null); setDeleteConfirm(null); setDnuEditId(null); }} sx={pillBtnSx} title="Manage Fleet">
             <SettingsIcon sx={{ fontSize: 18, mr: 0.5 }} />
             <Typography component="span" sx={{ fontWeight: 700, fontSize: 13 }}>Manage Fleet</Typography>

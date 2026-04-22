@@ -120,18 +120,17 @@ export default function ExpiringDocs() {
 
   return (
     <Box sx={pageSx}>
-      {/* ── Page header bar (matches Operations pages) ─────────── */}
+      {/* ── Page header bar ─────────── */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-end',
           flexWrap: 'wrap',
           gap: 1.5,
           mb: 2,
         }}
       >
-        <Typography variant="h6">Expiring Documents</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton onClick={(e) => setDepotEl(e.currentTarget)} sx={pillBtnSx}>
             <Typography component="span" sx={{ mr: 1, fontWeight: 700, fontSize: 14 }}>{depot}</Typography>
