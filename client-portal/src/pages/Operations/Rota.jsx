@@ -133,11 +133,12 @@ const navLikeItemSx = {
 
 const filterInputSx = {
   width: '100%',
-  height: 20,
+  // Phone: big enough to tap comfortably. Desktop: stay compact.
+  height: { xs: 32, sm: 20 },
   border: '1px solid #D0D0D0',
   borderRadius: 3,
   textAlign: 'center',
-  fontSize: 10,
+  fontSize: { xs: 13, sm: 10 },
   outline: 'none',
   padding: '0 4px',
   fontFamily: 'inherit',
@@ -563,10 +564,12 @@ export default function Rota() {
           PaperProps={{
             sx: {
               mt: 1,
-              p: 2.5,
+              p: { xs: 1.5, sm: 2.5 },
               borderRadius: 2,
               boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-              minWidth: 620,
+              width: { xs: 'calc(100vw - 24px)', sm: 620 },
+              maxWidth: { xs: 'calc(100vw - 24px)', sm: 'none' },
+              overflowX: 'auto',
             },
           }}
         >
