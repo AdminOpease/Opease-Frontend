@@ -1,7 +1,7 @@
 export function up(knex) {
   return knex.schema.createTable('rota_schedule', (t) => {
     t.string('id', 36).primary();
-    t.uuid('driver_id').references('id').inTable('drivers').onDelete('CASCADE');
+    t.string('driver_id', 36).references('id').inTable('drivers').onDelete('CASCADE');
     t.integer('week_id').references('id').inTable('rota_weeks');
     t.string('sun', 10).defaultTo('');
     t.string('mon', 10).defaultTo('');
