@@ -112,7 +112,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 
                   {/* Protected app shell */}
                   <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-                    <Route index element={<Navigate to="admin/drivers" replace />} />
+                    <Route index element={<Navigate to="operations/rota" replace />} />
 
                     {/* Recruitment */}
                     <Route path="recruitment/onboarding" element={<P pageKey="recruitment/onboarding"><Onboarding /></P>}>
