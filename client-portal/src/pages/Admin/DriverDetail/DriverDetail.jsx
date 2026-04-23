@@ -4,11 +4,9 @@ import { useParams, Link as RouterLink, Outlet, useLocation } from 'react-router
 import { Box, Paper, Stack, Typography, Button, Divider, Chip } from '@mui/material';
 import PersonIcon from '@mui/icons-material/Person';
 import DescriptionIcon from '@mui/icons-material/Description';
-import SendIcon from '@mui/icons-material/Send';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import StatusChip from '../../../components/common/StatusChip';
 import { useAppStore } from '../../../state/AppStore';
-import { drivers as driversApi } from '../../../services/api';
 
 const TABS = [
   { label: 'Profile', path: 'profile', icon: <PersonIcon sx={{ fontSize: 16 }} /> },
@@ -101,7 +99,7 @@ export default function DriverDetailLayout() {
             </Stack>
           </Paper>
 
-          {/* Invite to Portal */}
+          {/* Candidate portal access status (set a password on the Profile tab to grant access) */}
           <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, mt: 1.5 }}>
             <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 1 }}>
               Candidate Portal
@@ -109,34 +107,14 @@ export default function DriverDetailLayout() {
             {driver?.portal_invited ? (
               <Chip
                 icon={<CheckCircleIcon sx={{ fontSize: 16 }} />}
-                label="Invited"
+                label="Password set"
                 size="small"
                 sx={{ fontWeight: 600, fontSize: 12, bgcolor: '#E8F5E9', color: '#1B5E20' }}
               />
             ) : (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<SendIcon sx={{ fontSize: 14 }} />}
-                onClick={async () => {
-                  try {
-                    await driversApi.invite(driver.id);
-                    // Refresh the driver data
-                    window.location.reload();
-                  } catch (err) {
-                    alert('Failed to invite: ' + err.message);
-                  }
-                }}
-                sx={{
-                  textTransform: 'none',
-                  fontWeight: 600,
-                  fontSize: 12,
-                  borderRadius: 2,
-                  width: '100%',
-                }}
-              >
-                Invite to Portal
-              </Button>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                No password set — set one on the Profile tab.
+              </Typography>
             )}
           </Paper>
         </Box>

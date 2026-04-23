@@ -28,7 +28,6 @@ export const drivers = {
   create: (data) => post('/drivers', data),
   update: (id, data) => patch(`/drivers/${id}`, data),
   updateStatus: (id, data) => patch(`/drivers/${id}/status`, data),
-  invite: (id) => post(`/drivers/${id}/invite`),
   resetPassword: (id, password) => post(`/drivers/${id}/reset-password`, { password }),
 };
 

@@ -15,7 +15,6 @@ router.patch('/:id', requireRole('admin-staff'), validate(updateDriverSchema), c
 router.patch('/:id/status', requireRole('admin-staff'), validate(updateStatusSchema), ctrl.updateStatus);
 router.delete('/:id', requireRole('admin-staff'), ctrl.remove);
 router.post('/:id/restore', requireRole('admin-staff'), ctrl.restore);
-router.post('/:id/invite', requireRole('admin-staff'), ctrl.inviteToPortal);
 router.post('/:id/reset-password', requireRole('admin-staff'), ctrl.resetPassword);
 
 export default router;

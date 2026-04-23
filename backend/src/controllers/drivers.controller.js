@@ -321,23 +321,6 @@ export async function restore(req, res, next) {
   }
 }
 
-export async function inviteToPortal(req, res, next) {
-  try {
-    const driverId = req.params.id;
-    const driver = await db('drivers').where({ id: driverId }).first();
-    if (!driver) throw new NotFoundError('Driver');
-
-    const hash = await bcrypt.hash('driver123', 10);
-    await db('drivers')
-      .where({ id: driverId })
-      .update({ password_hash: hash, portal_invited: true, updated_at: new Date() });
-
-    res.json({ message: 'Driver invited to portal', email: driver.email });
-  } catch (err) {
-    next(err);
-  }
-}
-
 /**
  * Admin-only: set a new password for a driver.
  * Useful when a driver forgets their password (self-service reset isn't wired
