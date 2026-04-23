@@ -1,34 +1,49 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db from '../config/database.js';
+// Cognito is kept imported but inert — the candidate auth flow uses bcrypt
+// against drivers.password_hash and JWTs signed with JWT_SECRET. When Cognito
+// is eventually provisioned, these paths can be re-enabled.
+// eslint-disable-next-line no-unused-vars
 import * as cognito from '../config/cognito.js';
 import { ConflictError } from '../utils/errors.js';
 import { insertAndReturn } from '../utils/dbHelpers.js';
 
-const DEV_SECRET = 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET || 'opease-dev-secret-2024';
+const TOKEN_EXPIRES_IN = '7d';
+const TOKEN_EXPIRES_IN_SECONDS = 7 * 24 * 60 * 60;
 
-const isDev = process.env.NODE_ENV !== 'production' &&
-  (process.env.COGNITO_USER_POOL_ID || '').includes('PLACEHOLDER');
+function issueDriverToken(driver) {
+  const payload = {
+    sub: driver.id,
+    driverId: driver.id,
+    email: driver.email,
+    'cognito:groups': ['candidates'],
+  };
+  const accessToken = jwt.sign(payload, JWT_SECRET, { expiresIn: TOKEN_EXPIRES_IN });
+  return {
+    accessToken,
+    refreshToken: accessToken, // single-token model — refresh just re-signs
+    idToken: accessToken,
+    expiresIn: TOKEN_EXPIRES_IN_SECONDS,
+  };
+}
 
 export async function signup(req, res, next) {
   try {
     const { email, password, firstName, lastName, phone, station } = req.body;
+    const emailLower = String(email || '').trim().toLowerCase();
 
-    const existing = await db('drivers').where({ email }).first();
+    const existing = await db('drivers').where({ email: emailLower }).first();
     if (existing) throw new ConflictError('An account with this email already exists');
 
-    let cognitoSub = null;
-    if (!isDev) {
-      const cognitoResult = await cognito.signUp({ email, password, firstName, lastName, phone });
-      cognitoSub = cognitoResult.UserSub;
-      await cognito.addUserToGroup({ email, groupName: 'candidates' });
-    } else {
-      cognitoSub = 'dev-' + Date.now();
-    }
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const driver = await insertAndReturn('drivers', {
-      email,
-      cognito_sub: cognitoSub,
+      email: emailLower,
+      password_hash: passwordHash,
+      portal_invited: true,
+      cognito_sub: null,
       first_name: firstName,
       last_name: lastName,
       phone,
@@ -42,7 +57,7 @@ export async function signup(req, res, next) {
     });
 
     res.status(201).json({
-      message: 'Account created. Please verify your email.',
+      message: 'Account created',
       driverId: driver.id,
     });
   } catch (err) {
@@ -51,57 +66,33 @@ export async function signup(req, res, next) {
 }
 
 export async function verifyEmail(req, res, next) {
-  try {
-    const { email, code } = req.body;
-    if (!isDev) {
-      await cognito.confirmSignUp({ email, code });
-    }
-    res.json({ message: 'Email verified successfully' });
-  } catch (err) {
-    next(err);
-  }
+  // Email verification is not required in the current (non-Cognito) flow.
+  res.json({ message: 'Email verification is not currently required' });
 }
 
 export async function login(req, res, next) {
   try {
     const { email, password } = req.body;
+    const emailLower = String(email || '').trim().toLowerCase();
 
-    if (isDev) {
-      const driver = await db('drivers').where({ email }).first();
-      if (!driver) {
-        return res.status(401).json({ error: 'No account found with this email' });
-      }
-      // If driver has a password set (invited), verify it. Otherwise allow any password in dev.
-      if (driver.password_hash) {
-        const valid = await bcrypt.compare(password, driver.password_hash);
-        if (!valid) {
-          return res.status(401).json({ error: 'Invalid password' });
-        }
-      }
-      const payload = {
-        sub: driver.cognito_sub || 'dev-' + Date.now(),
-        email,
-        'cognito:groups': ['candidates'],
-      };
-      const accessToken = jwt.sign(payload, DEV_SECRET, { expiresIn: '24h' });
-      return res.json({
-        accessToken,
-        refreshToken: 'dev-refresh-' + Date.now(),
-        idToken: accessToken,
-        expiresIn: 86400,
-        driver,
+    const driver = await db('drivers').where({ email: emailLower }).first();
+    if (!driver) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+    if (!driver.password_hash) {
+      return res.status(401).json({
+        error: 'This account has no password set. Please contact your administrator.',
       });
     }
 
-    const result = await cognito.login({ email, password });
-    const auth = result.AuthenticationResult;
+    const valid = await bcrypt.compare(password, driver.password_hash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-    res.json({
-      accessToken: auth.AccessToken,
-      refreshToken: auth.RefreshToken,
-      idToken: auth.IdToken,
-      expiresIn: auth.ExpiresIn,
-    });
+    // Don't leak the hash back to the client
+    const { password_hash: _omit, ...safeDriver } = driver;
+    res.json({ ...issueDriverToken(driver), driver: safeDriver });
   } catch (err) {
     next(err);
   }
@@ -110,52 +101,30 @@ export async function login(req, res, next) {
 export async function refresh(req, res, next) {
   try {
     const { refreshToken: token } = req.body;
+    if (!token) return res.status(401).json({ error: 'Missing refresh token' });
 
-    if (isDev) {
-      // Decode the refresh token hint or return a generic dev token
-      const accessToken = jwt.sign(
-        { sub: 'dev-user', email: 'dev@opease.co.uk', 'cognito:groups': ['candidates'] },
-        DEV_SECRET,
-        { expiresIn: '24h' },
-      );
-      return res.json({ accessToken, idToken: accessToken, expiresIn: 86400 });
-    }
+    const decoded = jwt.verify(token, JWT_SECRET);
+    const driverId = decoded.driverId || decoded.sub;
+    const driver = await db('drivers').where({ id: driverId }).first();
+    if (!driver) return res.status(401).json({ error: 'Driver not found' });
 
-    const result = await cognito.refreshToken({ refreshToken: token });
-    const auth = result.AuthenticationResult;
-
-    res.json({
-      accessToken: auth.AccessToken,
-      idToken: auth.IdToken,
-      expiresIn: auth.ExpiresIn,
-    });
+    res.json(issueDriverToken(driver));
   } catch (err) {
-    next(err);
+    return res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 }
 
 export async function forgotPassword(req, res, next) {
-  try {
-    const { email } = req.body;
-    if (!isDev) {
-      await cognito.forgotPassword({ email });
-    }
-    res.json({ message: 'Password reset code sent to your email' });
-  } catch (err) {
-    next(err);
-  }
+  // Self-service password reset is not wired up yet. Admin resets via
+  // POST /api/drivers/:id/reset-password from the client portal.
+  res.json({
+    message: 'Please contact your administrator to reset your password.',
+  });
 }
 
 export async function resetPassword(req, res, next) {
-  try {
-    const { email, code, newPassword } = req.body;
-    if (!isDev) {
-      await cognito.confirmForgotPassword({ email, code, newPassword });
-    }
-    res.json({ message: 'Password reset successfully' });
-  } catch (err) {
-    next(err);
-  }
+  // Self-service password reset is not wired up yet.
+  res.status(501).json({ error: 'Self-service password reset is not enabled' });
 }
 
 export async function me(req, res, next) {

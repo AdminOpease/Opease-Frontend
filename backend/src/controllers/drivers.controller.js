@@ -337,3 +337,31 @@ export async function inviteToPortal(req, res, next) {
     next(err);
   }
 }
+
+/**
+ * Admin-only: set a new password for a driver.
+ * Useful when a driver forgets their password (self-service reset isn't wired
+ * up yet). Hashes the password with bcrypt and stores it on the driver row.
+ */
+export async function resetPassword(req, res, next) {
+  try {
+    const driverId = req.params.id;
+    const { password } = req.body || {};
+
+    if (!password || typeof password !== 'string' || password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const driver = await db('drivers').where({ id: driverId }).first();
+    if (!driver) throw new NotFoundError('Driver');
+
+    const hash = await bcrypt.hash(password, 10);
+    await db('drivers')
+      .where({ id: driverId })
+      .update({ password_hash: hash, portal_invited: true, updated_at: new Date() });
+
+    res.json({ message: 'Password updated', email: driver.email });
+  } catch (err) {
+    next(err);
+  }
+}

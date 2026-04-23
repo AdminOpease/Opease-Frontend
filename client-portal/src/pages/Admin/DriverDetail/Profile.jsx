@@ -2,7 +2,8 @@
 import * as React from 'react';
 import { useParams } from 'react-router-dom';
 import {
-  Box, Typography, Grid, TextField, Paper, Divider,
+  Box, Typography, Grid, TextField, Paper, Divider, Button, Stack,
+  IconButton, InputAdornment,
 } from '@mui/material';
 import { drivers as driversApi } from '../../../services/api';
 import { useAppStore } from '../../../state/AppStore';
@@ -14,6 +15,9 @@ import ContactEmergencyIcon from '@mui/icons-material/ContactEmergency';
 import AccountBalanceIcon from '@mui/icons-material/AccountBalance';
 import HomeIcon from '@mui/icons-material/Home';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import LockIcon from '@mui/icons-material/Lock';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 // --- Validators ---
 const reUKPhone = /^\+44\d{10}$/;
@@ -214,6 +218,33 @@ export default function DriverProfile() {
   const postErr = !!form.postcode && !reUKPostcode.test(form.postcode);
   const shareErr = form.rightToWork?.toLowerCase().includes('share') && !!form.shareCode && !reShareCode.test(form.shareCode);
 
+  // Password reset state
+  const [newPassword, setNewPassword] = React.useState('');
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [pwSaving, setPwSaving] = React.useState(false);
+  const [pwMessage, setPwMessage] = React.useState(null); // { type: 'success'|'error', text }
+
+  const handleResetPassword = async () => {
+    if (!driverIdRef.current) return;
+    if (!newPassword || newPassword.length < 6) {
+      setPwMessage({ type: 'error', text: 'Password must be at least 6 characters' });
+      return;
+    }
+    setPwSaving(true);
+    setPwMessage(null);
+    try {
+      await driversApi.resetPassword(driverIdRef.current, newPassword);
+      setNewPassword('');
+      setPwMessage({ type: 'success', text: 'Password updated. The driver can now log in with this password.' });
+      // Auto-clear success message after a few seconds
+      setTimeout(() => setPwMessage((m) => (m?.type === 'success' ? null : m)), 4000);
+    } catch (err) {
+      setPwMessage({ type: 'error', text: err?.message || 'Failed to update password' });
+    } finally {
+      setPwSaving(false);
+    }
+  };
+
   return (
     <Box sx={gridContainerSx}>
       {/* Row 1 */}
@@ -299,6 +330,62 @@ export default function DriverProfile() {
           <F label="Postcode" value={form.postcode} onChange={set('postcode')} onBlur={blur('postcode')}
             error={touched.postcode && postErr} helperText={touched.postcode && postErr ? 'e.g. SW1A 1AA' : undefined} />
         </Grid>
+      </Section>
+
+      {/* Password reset — admin can set a new password for this driver.
+          The driver then uses it to log in to the candidate portal. */}
+      <Section icon={<LockIcon />} title="Candidate Portal Password">
+        <Stack spacing={1}>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            Set or reset the password this driver uses to sign in to the candidate portal.
+            The driver is not notified automatically — share the new password with them yourself.
+          </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ xs: 'stretch', sm: 'flex-start' }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="New password"
+              type={showPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !pwSaving) handleResetPassword(); }}
+              autoComplete="new-password"
+              sx={fieldSx}
+              helperText="Minimum 6 characters"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      size="small"
+                      onClick={() => setShowPassword((v) => !v)}
+                      edge="end"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
+            <Button
+              variant="contained"
+              onClick={handleResetPassword}
+              disabled={pwSaving || newPassword.length < 6}
+              sx={{ height: 40, minWidth: 140, borderRadius: 9999, textTransform: 'none', fontWeight: 700, flexShrink: 0 }}
+            >
+              {pwSaving ? 'Saving…' : 'Update Password'}
+            </Button>
+          </Stack>
+          {pwMessage && (
+            <Typography sx={{
+              fontSize: 12,
+              fontWeight: 600,
+              color: pwMessage.type === 'success' ? '#065F46' : '#991B1B',
+            }}>
+              {pwMessage.text}
+            </Typography>
+          )}
+        </Stack>
       </Section>
     </Box>
   );
